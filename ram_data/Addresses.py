@@ -43,13 +43,12 @@ FUNC_PTR_CURRENCY_INPUT = 0x26D628
 # NOTE: Beginning of email pointers: 0x2da0f0
 # NOTE: Beginning of email strings (much more space): 0x329458
 ADDR_TEMP_SHORTENED_PART_NAME = 0x2DA630
-ADDR_AP_STAMP_STRING = 0x2DA600
-ADDR_PART_SHOP_ITEM_CLASSIFICATIONS = 0x2DA650 #0x2DA110
+ADDR_AP_STAMP_STRING = 0x2DAE80
+ADDR_PART_SHOP_ITEM_CLASSIFICATIONS = 0x2DA650
 ADDR_SHOP_STRINGS = 0x329460
 OFFSET_SHOP_STRING_PLAYER_NAME = 42 # Max item name length is 41 characters + null terminator. Enforced by get_shop_strings, not Archipelago.
 OFFSET_SHOP_STRING_ITEM_CLASSIFICATION_PTR = 60 # Max player name in AP is 16 characters + a space at the beginning (for positioning in-game) + the null terminator.
 SHOP_STRING_LENGTH = 64
-ADDR_SHOP_HOOKS = 0x2DA180 # All functions start on either byte 0x80 or 0x00 (e.g. 2DA180, then 2DA200, so on). Some intervals of 0x80 may be skipped for longer functions.
 
 class StorageType(StrEnum):
     Word = "Word" # Money is stored in a 32-bit signed integer (yes, signed)

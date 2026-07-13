@@ -87,6 +87,16 @@ class LicenseHandling(Choice):
     option_remove = 2
     default = 0
 
+class PartsCostModifier(Range):
+    """Set a percentage modifier for the cost of parts.
+    
+    If set to 0, all parts will be free.
+    """
+    display_name = "Parts Cost Modifier"
+    default = 100
+    range_start = 0
+    range_end = 100
+
 @dataclass
 class RoadTripOptions(PerGameCommonOptions):
     area_unlock_mode:                         AreaUnlockMode
@@ -95,6 +105,7 @@ class RoadTripOptions(PerGameCommonOptions):
     prioritize_good_rewards_for_races:        PrioritizeGoodRewardsForRaces
     prioritize_good_rewards_for_minigames:    PrioritizeGoodRewardsForMinigames
     license_handling:                         LicenseHandling
+    parts_cost_modifier:                      PartsCostModifier
 
 def get_RTA_options(multiworld: MultiWorld, player : int) -> RoadTripOptions:
     options = multiworld.worlds[player].options

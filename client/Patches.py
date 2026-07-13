@@ -3,11 +3,50 @@ from ..ram_data import Addresses
 from .MIPS import *
 
 NOP_BYTES = bytes([0,0,0,0])
-JAL_AP_LOCATION_FUNC_READ = bytes([0x80, 0x68, 0x0B, 0x0C]) # jal 0x2DA200 (0C0B6883)
-JAL_AP_LOCATION_FUNC_WRITE = bytes([0x83, 0x68, 0x0B, 0x0C]) # jal 0x2DA20C (0C0B6880)
 
-J_AP_LOCATION_FUNC_READ = bytes([0x80, 0x68, 0x0B, 0x08]) # j 0x2DA200 (080B6883)
-J_AP_LOCATION_FUNC_WRITE = bytes([0x83, 0x68, 0x0B, 0x08]) # j 0x2DA20C (080B6880)
+# Assembly hook locations in RAM
+#
+# All of these are written to space normally used by pointer tables to email strings.
+#   Since we disable the email system, all of this space can be used as a code cave.
+#
+# For easier organization, all assembly patches start on an address ending in 00 or 80.
+#   This means each patch is always given at least 0x80 (128) bytes of space - and
+#   since MIPS instructions are always 4 bytes long, this equals 32 instructions.
+#
+# Some patches need fewer than 32 instructions, but the additional space allows for
+#   easier expansion of the patch later if it ends up needing more functionality.
+#
+# Some patches need more than 32 instructions, and take up multiple of these 0x80
+#   byte 'slots'.
+HOOK_ADDR_INIT_AP_ITEM_INDEX = 0x2DA180
+HOOK_ADDR_AP_LOCATION_FUNC_READ = 0x2DA200
+HOOK_ADDR_AP_LOCATION_FUNC_WRITE = 0x2DA20C
+HOOK_ADDR_SHOP_PURCHASES = 0x2DA380
+HOOK_ADDR_NPC_REWARDS = 0x2DA400
+HOOK_ADDR_IS_LICENSE_CHECK_COMPLETE = 0x2DA480
+HOOK_ADDR_WRITE_LICENSE_CHECK = 0x2DA500 # (License checks are not handled by the earlier AP Location hook.)
+
+# NOTE: 0x2DA600 through 0x2DA67F is reserved for custom strings (e.g. AP item classifications, used by the
+#   part shop description hook)
+
+HOOK_ADDR_ENFORCE_AREA_ACCESS = 0x2DA680
+HOOK_ADDR_AREA_ACCESS_NPCS_AND_ENTRANCES = 0x2DA800
+HOOK_ADDR_AREA_ACCESS_Q_COINS = 0x2DA880
+HOOK_ADDR_AREA_ACCESS_OVERWORLD_ITEMS = 0x2DA900
+HOOK_ADDR_AP_PARTS_SHOP_FULL_NAME_IN_BUY_CONFIRMATION = 0x2DA980
+HOOK_ADDR_AP_PARTS_SHOP_DESCRIPTIONS = 0x2DA98C
+
+HOOK_ADDR_NPC_EQUIPS = 0x2DAB80
+HOOK_ADDR_PARTS_SHOP_CHECK_IF_LOCATION_COMPLETE = 0x2DAC00
+HOOK_ADDR_PARTS_SHOP_OWNED_QUANTITY_STRING_HANDLING = 0x2DAC80
+
+HOOK_ADDR_DISPLAY_AP_STAMP_COUNT = 0x2DAD00
+HOOK_ADDR_CONVERT_DIGIT_IN_INT_TO_CHAR = 0x2DAD80
+HOOK_ADDR_HANDLE_MY_CITY_PARTS_SHOP_ON_CONTINUE = 0x2DAE00
+
+# NOTE: 0x2DAE80 through 0x2DAEFF also reserved for custom strings
+
+HOOK_ADDR_COST_PERCENTAGE_MODIFIER = 0x2DAF00
 
 # ---------------------------------------------------
 _patch_index = 0
@@ -55,12 +94,15 @@ def patch_rta_no_slot_data(pine : Pine, verification_run : bool = False):
             patch(pine)
 
 
-def patch_rta_post_connect(pine : Pine, shop_strings : list, area_unlock_mode : int):
+def patch_rta_post_connect(pine : Pine, shop_strings : list, area_unlock_mode : int, parts_cost_modifier : int):
     # Handle shop strings
     hook_shops_to_display_ap_item_strings(pine, shop_strings)
 
     # Handle enforcing area access
     enforce_area_access(pine, area_unlock_mode)
+
+    # Apply a percentage modifier for the cost of parts
+    cost_percentage_modifier(pine, parts_cost_modifier)
 
 # ---------------------------------------------------
 
@@ -101,13 +143,12 @@ def hook_currency_input_to_init_ap_item_index(pine : Pine):
     This hook runs after currency input is complete, but before the President Forest cutscene begins.
     """
     # Overwrite jal to president Forest cutscene so we can add a hook that runs first
-    addr = 0x2da180
     pine.write_bytes(0x26d650, mips([
-        jal(addr)
+        jal(HOOK_ADDR_INIT_AP_ITEM_INDEX)
     ]))
     
     # Hook
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_INIT_AP_ITEM_INDEX, mips([
         # Set AP index to 0x1
         addiu(t0, zero, 0x1),
         lui(t1, 0x177),
@@ -135,12 +176,11 @@ def hook_game_continue_to_reset_my_city_part_shop(pine : Pine):
     received so far from the multiworld.
     """
     # Change the jr ra to a j to our hook
-    addr = 0x2DAE00
     pine.write_bytes(0x26d42c, mips([
-        j(addr)
+        j(HOOK_ADDR_HANDLE_MY_CITY_PARTS_SHOP_ON_CONTINUE)
     ]))
 
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_HANDLE_MY_CITY_PARTS_SHOP_ON_CONTINUE, mips([
         lui(t0, 0x2D),
         ori(t0, t0, 0xA0F1),
         addiu(t1, t1, 0x1),
@@ -183,8 +223,7 @@ def write_ap_location_func(pine : Pine):
     table_length_table = bytes([0x97, 0x0D, 0x0C, 0x05, 0x06, 0x04, 0x04, 0x0F, 0x03, 0x02, 0x03, 0x09, 0x02, 0x0F, 0x0B, 0x30])
     pine.write_bytes(0x2da100, table_length_table) # Just prior to all ASM patches
 
-    addr = 0x2da200
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_AP_LOCATION_FUNC_READ, mips([
         # To read a bit, start here. Set t7 to 1 (checked later).
         addiu(t7, zero, 1),
         beq(zero, zero, 3),
@@ -288,14 +327,13 @@ def hook_shop_purchases(pine : Pine):
     # At 0x2697d8, change the ASM instruction (which is currently a jump-and-link to the function that handles
     #   updating your inventory) to a jal to our new hook.
     pine.write_bytes(0x2697D8, mips([
-        jal(0x2DA380)
+        jal(HOOK_ADDR_SHOP_PURCHASES)
     ]))
     
     # In our hook, test if the current region index is 9 (My City).
     #   If it's not, run our AP location check function (defined above).
     #   If it is, jump (not jal) to the normal shop function that updates your inventory.
-    addr = 0x2DA380
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_SHOP_PURCHASES, mips([
         lui(t0, 0x0033),
         addiu(t0, t0, 0x5923),
         lbu(t0, 0, t0), # was lb
@@ -304,7 +342,7 @@ def hook_shop_purchases(pine : Pine):
         nop(),
         j(0x23D2C0),
         nop(),
-        j(0x2DA20C),
+        j(HOOK_ADDR_AP_LOCATION_FUNC_WRITE),
         nop()
     ]))
 
@@ -315,17 +353,18 @@ def hook_npc_rewards(pine : Pine):
     Also sets the name of the received item to 'AP Item', instead of the vanilla name.
     """
     # Overwrite the call to the normal 'set inventory' function with our AP location function.
-    pine.write_bytes(0x23A0B4, JAL_AP_LOCATION_FUNC_WRITE)
+    pine.write_bytes(0x23A0B4, mips([
+        jal(HOOK_ADDR_AP_LOCATION_FUNC_WRITE)
+    ]))
 
     # Set all NPC reward item names to 'AP Item'
     # 1. Hook the JAL that would normally get the pointer to the reward's name.
     pine.write_bytes(0x239FE4, mips([
-        jal(0x2DA400)
+        jal(HOOK_ADDR_NPC_REWARDS)
     ]))
 
     # 2. In our hook, instead return the address to our new "AP Item" string.
-    addr = 0x2DA400
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_NPC_REWARDS, mips([
         lui(v0, 0x002D),
         ori(v0, v0, 0xA610),
         jr(ra),
@@ -337,7 +376,7 @@ def hook_npc_rewards(pine : Pine):
     pine.write_bytes(0x2DA614, bytes([0x74, 0x65, 0x6d, 0x00]))
 
     # Replace 'Body' string used when receiving a body from an NPC with just a double-quote
-    #     (since it needs to be there to be used as the opening quote in "AP Item")
+    #   (since it needs to be there to be used as the opening quote in "AP Item")
     pine.write_bytes(0x3338E8, bytes([0x22, 0x00]))
 
 def hook_overworld_item_funcs(pine : Pine):
@@ -363,11 +402,13 @@ def hook_overworld_item_funcs(pine : Pine):
         0x25D5B8  # Emerald
     ]
     for address in overworld_item_JALs:
-        pine.write_bytes(address, JAL_AP_LOCATION_FUNC_WRITE)
+        pine.write_bytes(address, mips([
+            jal(HOOK_ADDR_AP_LOCATION_FUNC_WRITE)
+        ]))
 
     # Also modify these functions to prevent overworld items from disappearing when we add that item to our
-    #    inventory. (Road Trip uses the status of the item in your inventory to determine whether it should
-    #    appear in the overworld.)
+    #   inventory. (Road Trip uses the status of the item in your inventory to determine whether it should
+    #   appear in the overworld.)
     overworld_item_inventory_checks = [
         0x25BF9C, # Wallet 
         0x25C218, # Fluffy Mushroom
@@ -384,12 +425,16 @@ def hook_overworld_item_funcs(pine : Pine):
     ]
 
     for address in overworld_item_inventory_checks:
-        pine.write_bytes(address, JAL_AP_LOCATION_FUNC_READ)
+        pine.write_bytes(address, mips([
+            jal(HOOK_ADDR_AP_LOCATION_FUNC_READ)
+        ]))
+        
         # All overworld items have a stamp check that will cause the item to not display if the stamp has
-        #     been received. For example, the Fountain Pen and Stamp 39, "Found Benji's Fountain Pen".
+        #   been received. For example, the Fountain Pen and Stamp 39, "Found Benji's Fountain Pen".
         # This is done since items like the Fountain Pen are removed from your inventory when completing
-        #      the stamp, and the overworld item needs to stay invisible.
+        #   the stamp, and the overworld item needs to stay invisible even after that happens.
         # Since these items and their locations are now separate for AP, we need to remove these stamp checks.
+        #
         # All of them are four instructions (16 bytes) after the inventory checks.
         pine.write_bytes(address+16, NOP_BYTES)
 
@@ -411,8 +456,8 @@ def hook_license_upgrades(pine : Pine):
     #    1. Modify the game so that it uses the AP license location data to determine whether to run the
     #       check, NOT the actual obtained licenses. (We can skip the check if we've already cleared the
     #       location for that license - otherwise, run it.)
-    #    2. When saving a license update, update the AP license location bitfield instead of incrementing
-    #       the actual license count owned by the player.
+    #    2. When we would normally be awarded a new license by the game, update the AP license location
+    #       bitfield instead (as opposed to incrementing the game's license count int, the vanilla behavior).
 
     # --------------------------------------
 
@@ -424,12 +469,11 @@ def hook_license_upgrades(pine : Pine):
     # Here we call our hook to get license upgrades to check against the AP license location bitfield,
     #   instead of the licenses in your inventory.
     pine.write_bytes(0x23757C, mips([
-        jal(0x2DA480)
+        jal(HOOK_ADDR_IS_LICENSE_CHECK_COMPLETE)
     ]))
 
     # Hook 1
-    addr = 0x2DA480
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_IS_LICENSE_CHECK_COMPLETE, mips([
         # Road Trip has a table containing (among other things) the corresponding rank for each race. 
         # a2 contains a pointer to the entry in that table for this race. Byte 3 contains the race rank.
         # This instruction loads that byte.
@@ -466,14 +510,13 @@ def hook_license_upgrades(pine : Pine):
     
     # Overwrite existing lines that handle updating license byte in the 'handleRaceResults' function.
     pine.write_bytes(0x2366FC, mips([
-        jal(0x2DA500),
+        jal(HOOK_ADDR_WRITE_LICENSE_CHECK),
         nop(),
         nop()
     ]))
 
     # Hook 2 - Updates our AP location byte for license checks
-    addr = 0x2DA500
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_WRITE_LICENSE_CHECK, mips([
         beq(v1, zero, 9),           # Skip if no license bit to update
         addiu(v0, zero, 1),         # Init license bit slot to 1
         addiu(v1, v1, -1),          # Number of left shifts to apply to 1 
@@ -511,21 +554,12 @@ def change_shop_item_quantity_display_to_ap(pine : Pine):
     """
     # Change the inventory check call to use our own hook instead
     pine.write_bytes(0x24723c, mips([
-        jal(0x2DAC00)
-    ]))
-
-    # Change the check at this location to jump to our hook, which will prevent the game from displaying 
-    #     "You have #" in part shops (except My City), and always display "You [don't] have it" instead.
-    #     ("You have #" would not make sense for AP location checks.)
-    pine.write_bytes(0x247284, mips([
-        nop(),
-        jal(0x2DAC80)
+        jal(HOOK_ADDR_PARTS_SHOP_CHECK_IF_LOCATION_COMPLETE)
     ]))
 
     # Is this the My City part shop? If so, jump to the normal function. 
     # Otherwise, call the AP location check function
-    addr = 0x2DAC00
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_PARTS_SHOP_CHECK_IF_LOCATION_COMPLETE, mips([
         lui(t0, 0x0033),
         ori(t0, t0, 0x5921),
         lbu(t1, 0, t0),
@@ -537,15 +571,22 @@ def change_shop_item_quantity_display_to_ap(pine : Pine):
         nop(),
         j(0x23D488),
         nop(),
-        j(0x2DA200), # J_AP_LOCATION_FUNC_READ
+        j(HOOK_ADDR_AP_LOCATION_FUNC_READ),
         nop()
     ]))
 
-    addr = 0x2DAC80
+    # Change the check at this location to jump to our hook, which will prevent the game from displaying 
+    #     "You have #" in part shops (except My City), and always display "You [don't] have it" instead.
+    #     ("You have #" would not make sense for AP location checks.)
+    pine.write_bytes(0x247284, mips([
+        nop(),
+        jal(HOOK_ADDR_PARTS_SHOP_OWNED_QUANTITY_STRING_HANDLING)
+    ]))
+
     # If this is not the My City part shop, jump to the part of the calling function that makes the
     #     displayed text "You have it" or "You don't have it".
     #     Otherwise, jump to the part that could make it "You have #".
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_PARTS_SHOP_OWNED_QUANTITY_STRING_HANDLING, mips([
         lui(t0, 0x0033),
         ori(t0, t0, 0x5921),
         lbu(t1, 0, t0),
@@ -573,11 +614,10 @@ def patch_npc_equips(pine : Pine):
     #   if you are in the Ski Jump lobby (since it should still remove the Flight Wing).
     # All other NPC equips should be disabled. (e.g. Billboards, Wing Set + Propeller)
     pine.write_bytes(0x23B984, mips([
-        jal(0x2DAB80)
+        jal(HOOK_ADDR_NPC_EQUIPS)
     ]))
 
-    addr = 0x2DAB80
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_NPC_EQUIPS, mips([
         lui(t0, 0x0033),
         ori(t0, t0, 0x5921),
         lbu(t1, 0, t0),
@@ -629,7 +669,7 @@ def disable_func_that_overwrites_ap_save_data(pine : Pine):
     No idea why these 0x0 writes happen - for now, I'm just going to remove this call, run some test multiworlds,
     and see if anything breaks.
     """
-    pine.write_bytes(0x23daf4, mips([
+    pine.write_bytes(0x23DAF4, mips([
         jr(ra) # (instead of a j to the offending function)
     ]))
 
@@ -638,8 +678,7 @@ def disable_vanilla_my_city_part_shop_handling(pine : Pine):
     Overwrite function that handles vanilla part availability behavior for My City part shop to a jr ra (i.e. do nothing).
     In vanilla, all parts from part shops you have previously visited are available in My City.
     """
-    addr = 0x267C30
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(0x267C30, mips([
         jr(ra),
         nop()
     ]))
@@ -661,7 +700,8 @@ def encode_as_ascii_code_list(string : str) -> list[int]:
 
 def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
     """
-    Write the AP part shop descriptions (item name, player, classification) into the now-unused email text data.
+    Write the AP part shop descriptions (item name, player, classification) into the now-unused email text data, and
+    add a hook to the part shops to display them instead of the vanilla part descriptions.
     """
     from BaseClasses import ItemClassification
 
@@ -718,20 +758,17 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
     # ------------------------------------------
 
     # Change JAL in func that handles the final buy confirmation to our hook.
-    # This will change it to display the full AP item name.
-    addr = 0x2DA980
     pine.write_bytes(0x268910, mips([
-        jal(addr)
+        jal(HOOK_ADDR_AP_PARTS_SHOP_FULL_NAME_IN_BUY_CONFIRMATION)
     ]))
 
-    # Change JAL that would get the address of the vanilla parts description to our hook
+    # Change JAL that would get the address of the vanilla parts description to our hook.
     pine.write_bytes(0x22e9c4, mips([
-        jal(addr + 0xC) # jal 0x002DA98C
+        jal(HOOK_ADDR_AP_PARTS_SHOP_DESCRIPTIONS) # Same as HOOK_ADDR_AP_PARTS_SHOP_FULL_NAME_IN_BUY_CONFIRMATION + 0xC, see note below
     ]))
 
     # Write the hook to replace the part descriptions in stores with AP item data
-    addr = 0x2DA980
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_AP_PARTS_SHOP_FULL_NAME_IN_BUY_CONFIRMATION, mips([
         # Start here if we want the full part name (set t0 to 1, checked later)
         # This would likely give us too many characters to fit in the part description box,
         #   but is important for the final buy confirmation so the player can see the full
@@ -740,7 +777,9 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
         beq(zero, zero, 3),
         nop(),
 
-        # Otherwise, start here for a truncated version of the item name (set t0 to 0, checked later)
+        # Otherwise, start here for a truncated version of the item name that should fit in
+        # the part description box (set t0 to 0, checked later)
+        # (NOTE: HOOK_ADDR_AP_PARTS_SHOP_DESCRIPTIONS points to here)
         addiu(t0, zero, 0),
 
         # Check if we are in a part shop. If not, return.
@@ -980,8 +1019,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
                 raise Exception("enforce_area_access, decorations table: Invalid region?")
             
         # DECORATIONS MODE PATCH
-        addr = 0x2DA680
-        pine.write_bytes(addr, mips([
+        pine.write_bytes(HOOK_ADDR_ENFORCE_AREA_ACCESS, mips([
             # TODO: Add comments
             addiu(sp, sp, -0x4),
             sw(ra, 0, sp),
@@ -1089,8 +1127,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
                 raise Exception("enforce_area_access, stamp table: Invalid region?")
         
         # STAMP MODE PATCH
-        addr = 0x2DA680
-        pine.write_bytes(addr, mips([
+        pine.write_bytes(HOOK_ADDR_ENFORCE_AREA_ACCESS, mips([
             # TODO: Add comments
             addiu(sp, sp, -0x4),
             sw(ra, 0, sp),
@@ -1172,16 +1209,15 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
         pine.write_bytes(addr+8, bytes([0x73, 0x3a, 0x20]))
 
         # Part 2 - Jump to our hook instead of returning from notebook stamps page task
-        addr = 0x2DAD00 # Hook address
         pine.write_bytes(0x265FDC, mips([
-            j(addr)
+            j(HOOK_ADDR_DISPLAY_AP_STAMP_COUNT)
         ]))
 
         # Part 3 - Hook
         # Takes the AP stamp count, converts the number to a string, concatenates it to the end of
         #    our "AP stamps: " string, and then passes that string's address (+ positioning values
         #    and text color value) to RTA's print text function.
-        pine.write_bytes(addr, mips([
+        pine.write_bytes(HOOK_ADDR_DISPLAY_AP_STAMP_COUNT, mips([
             addiu(sp, sp, -0x4),
             sw(ra, 0, sp),
             lui(a0, 0x0178),
@@ -1190,13 +1226,13 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             lui(a2, 0x002D),
             ori(a2, a2, 0xAE80),
             sb(zero, 0xB, a2),
-            jal(0x2DAD80),
+            jal(HOOK_ADDR_CONVERT_DIGIT_IN_INT_TO_CHAR),
             addiu(a1, zero, 0x64),
             addu(a0, zero, v0),
-            jal(0x2DAD80),
+            jal(HOOK_ADDR_CONVERT_DIGIT_IN_INT_TO_CHAR),
             addiu(a1, zero, 0xA),
             addu(a0, zero, v0),
-            jal(0x2DAD80),
+            jal(HOOK_ADDR_CONVERT_DIGIT_IN_INT_TO_CHAR),
             addiu(a1, zero, 0x1),
             addiu(a0, zero, 0x14),
             addiu(a1, zero, 0x4),
@@ -1212,8 +1248,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
         # a0 - Number to print
         # a1 - Lowest possible value that contains the digit to test against (i.e to get hundreds digit, pass 100, or 0x64)
         # a2 - Address to string, we'll save the char to the end of the string and then add a null terminator after it
-        addr = 0x2DAD80
-        pine.write_bytes(addr, mips([
+        pine.write_bytes(HOOK_ADDR_CONVERT_DIGIT_IN_INT_TO_CHAR, mips([
             addiu(t0, zero, 0),
             addu(t1, zero, a2),
             lbu(t2, 0, t1),
@@ -1259,16 +1294,15 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
     # This calls the big patch above every frame, which sets a boolean value that the hooks below
     #   reference to see if they should allow an action or not.
     pine.write_bytes(0x24332C, mips([
-        j(0x2DA680)
+        j(HOOK_ADDR_ENFORCE_AREA_ACCESS)
     ]))
 
     # NPCs and entrances
-    addr = 0x2DA800
     pine.write_bytes(0x210EEC, mips([
-        jal(addr) # Jump-and-link to hook
+        jal(HOOK_ADDR_AREA_ACCESS_CHECK_NPCS_AND_ENTRANCES) # Jump-and-link to hook
     ]))
     # Hook
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_CHECK_NPCS_AND_ENTRANCES, mips([
         beq(v0, zero, 8),
         lui(t0, 0x002D),
         ori(t0, t0, 0xA57F),
@@ -1282,13 +1316,12 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
     ]))
 
     # Q Coins
-    addr = 0x2DA880
     pine.write_bytes(0x241C98, mips([
-        jal(addr), # Jump-and-link to hook
+        jal(HOOK_ADDR_AREA_ACCESS_CHECK_Q_COINS), # Jump-and-link to hook
         nop()
     ]))
     # Hook
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_CHECK_Q_COINS, mips([
         bc1fl(9),
         nop(),
         lui(t0, 0x002D),
@@ -1303,9 +1336,8 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
     ]))
 
     # Overworld items
-    addr = 0x2DA900 
     # Hook
-    pine.write_bytes(addr, mips([
+    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_CHECK_OVERWORLD_ITEMS, mips([
         addiu(t1, ra, 0),
         lui(t0, 0x002D),
         ori(t0, t0, 0xA57F),
@@ -1339,5 +1371,105 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
 
     for address in overworld_item_collision_checks:
         pine.write_bytes(address+8, mips([
-            jal(addr) # Jump-and-link to hook
+            jal(HOOK_ADDR_AREA_ACCESS_CHECK_OVERWORLD_ITEMS) # Jump-and-link to hook
         ]))
+
+def cost_percentage_modifier(pine : Pine, cost_percent_int : int):
+    '''
+    Inject a hook into the 'get part cost' function that modifies the returned cost by a 
+    provided percentage.
+    '''
+    # Convert cost_percent_int to two bytes, store in pre-determined location
+    # Assumes that int will not be over 100 or below 0
+    addr = 0x2DAE90
+    modifier = list(cost_percent_int.to_bytes(2))
+    modifier.reverse()
+    modifier = bytes(modifier)
+    pine.write_bytes(addr, modifier)
+
+    # In the function that handles getting the cost of a part/body (0x243670 in NTSC),
+    #   Road Trip first loads the type of part, then runs different code depending on
+    #   the type of part. This is necessary since the data structures for each part 
+    #   differ from each other, so determining where the part cost is actually stored 
+    #   in memory is a little different for each part type.
+    #
+    # After finding the cost, all of these code branches immediately return from the
+    #   function. This means that unlike for most functions, where we can patch the
+    #   one return call at the end to jump to our hook instead, we need to patch
+    #   several return calls, one for each different kind of part.
+    cost_return_hooks = [
+        0x243698, # Bodies
+        0x2436b8, # Tires
+        0x2436d8, # Engines
+        0x2436f0, # Chassis
+        0x243710, # Transmission
+        0x243728, # Steering
+        0x243750, # Brakes
+        0x243770, # Wheels
+        0x243788, # Lights
+        0x2437a8, # Wing Set
+        0x2437c0, # Special Parts
+        0x2437e0, # Options
+        0x243800, # Sticker
+        0x243818, # Horns
+        0x243838, # Meters
+        # 00243840, # Collectibles, not needed (never sold)
+    ]
+
+    for addr in cost_return_hooks:
+        pine.write_bytes(addr, mips([
+            j(HOOK_ADDR_COST_PERCENTAGE_MODIFIER)
+        ]))
+
+    # Hook
+    pine.write_bytes(HOOK_ADDR_COST_PERCENTAGE_MODIFIER, mips([
+        # t0 -- Cost modifier percentage (as int, stored in a halfword (two bytes))
+        # t1 -- Temporarily stores the value 100 for a bne, then used as a loop counter (will be division quotient)
+        # t2 -- 2nd loop counter
+
+        # Load cost modifier percentage into t0
+        lui(t0, 0x002D),
+        ori(t0, t0, 0xAE90),
+        lhu(t0, 0, t0),
+
+        # Set t1 to 100
+        addiu(t1, zero, 0x64),
+
+        # If percentage is 100, do nothing, use v0 as-is, return
+        bne(t0, t1, 4),
+        nop(),
+        jr(ra),
+        nop(),
+
+        # If percentage is 0, set cost to 0 and return
+        bne(t0, zero, 5),
+        nop(),
+        addiu(v0, zero, 0),
+        jr(ra),
+        nop(),
+
+        # Initialize quotient
+        addiu(t1, zero, 0),
+
+        # Loop 1 (get quotient)
+        beq(v0, zero, 5), # If cost is 0, branch to next loop
+        nop(),
+        addiu(t1, t1, 1), # Increment divisor
+        beq(zero, zero, -3), # Return to top of loop
+        addiu(v0, v0, -0x64), # ...after subtracting 100 from part cost
+
+        # At this point, v0 will be 0 (all part costs are divisible by 100 in Road Trip)
+
+        # Initialize t2, this will be our addition count
+        addiu(t2, zero, 0), 
+
+        # Loop 2 (get modified cost)
+        beq(t2, t0, 5), # If the addition count is equal to the cost modifier percentage, we have our new cost, branch to the end
+        nop(),
+        addiu(t2, t2, 1), # Increment addition count
+        beq(zero, zero, -3), # Return to the top of the loop
+        addu(v0, v0, t1), # ...after adding division quotient to cost
+
+        jr(ra),
+        nop()
+    ]))

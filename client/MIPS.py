@@ -367,12 +367,18 @@ def mips(instruction_bin_strings : list[str], endianness : str = "little") -> by
 
 
 def get_lower_nibble(word: int):
+    """
+    Get lower two bytes from a word
+    """
     if word <= 0xFFFFFFFF and word >= 0:
         return word & 0x0000FFFF
     else:
         raise Exception("get_lower_nibble was passed either an int larger than a word, or a negative int")
     
 def get_upper_nibble(word: int):
+    """
+    Get upper two bytes from a word
+    """
     if word <= 0xFFFFFFFF and word >= 0:
         return word & 0xFFFF0000
     else:

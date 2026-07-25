@@ -1,3 +1,6 @@
+from typing import Callable
+from functools import partial
+
 # References: 
 # https://student.cs.uwaterloo.ca/~isg/res/mips/opcodes
 # https://www.kth.se/social/files/563c63c9f276547044e8695f/mips-ref-sheet.pdf
@@ -147,6 +150,19 @@ def beq(src_1, src_2, offset):
     """
     Branch if src_1 and src_2 are equal
     """
+    # Label-compatible version of function
+    def _using_label(src_1, src_2, label : str, line_number : int, labels : dict):
+        opcode = '000100'
+        offset = labels[label] - (line_number + 1)
+        return mips_instruction_immediate_encoding(opcode, src_1, src_2, offset)
+    
+    # If the offset is a label, return a partial function filling in all the details
+    #   except the line number and labels dictionary, which will be needed to process
+    #   the label.
+    if isinstance(offset, str):
+        return partial(_using_label, src_1, src_2, offset)
+
+    # If here, offset should be an immediate (int)
     opcode = '000100'
     offset -= 1
     return mips_instruction_immediate_encoding(opcode, src_1, src_2, offset)
@@ -155,6 +171,19 @@ def bgtz(src, offset):
     """
     Branch if src greater than zero
     """
+    # Label-compatible version of function
+    def _using_label(src, label : str, line_number : int, labels : dict):
+        opcode = '000111'
+        offset = labels[label] - (line_number + 1)
+        return mips_instruction_immediate_encoding(opcode, src, 0, offset)
+    
+    # If the offset is a label, return a partial function filling in all the details
+    #   except the line number and labels dictionary, which will be needed to process
+    #   the label.
+    if isinstance(offset, str):
+        return partial(_using_label, src, offset)
+
+    # If here, offset should be an immediate (int)
     opcode = '000111'
     offset -= 1
     return mips_instruction_immediate_encoding(opcode, src, 0, offset)
@@ -163,6 +192,19 @@ def bltz(src, offset):
     """
     Branch if src less than zero
     """
+    # Label-compatible version of function
+    def _using_label(src, label : str, line_number : int, labels : dict):
+        opcode = '000001'
+        offset = labels[label] - (line_number + 1)
+        return mips_instruction_immediate_encoding(opcode, src, 0, offset)
+    
+    # If the offset is a label, return a partial function filling in all the details
+    #   except the line number and labels dictionary, which will be needed to process
+    #   the label.
+    if isinstance(offset, str):
+        return partial(_using_label, src, offset)
+    
+    # If here, offset should be an immediate (int)
     opcode = '000001'
     offset -= 1
     return mips_instruction_immediate_encoding(opcode, src, 0, offset)
@@ -171,6 +213,19 @@ def bne(src_1, src_2, offset):
     """
     Branch if src_1 and src_2 are not equal
     """
+    # Label-compatible version of function
+    def _using_label(src_1, src_2, label : str, line_number : int, labels : dict):
+        opcode = '000101'
+        offset = labels[label] - (line_number + 1)
+        return mips_instruction_immediate_encoding(opcode, src_1, src_2, offset)
+    
+    # If the offset is a label, return a partial function filling in all the details
+    #   except the line number and labels dictionary, which will be needed to process
+    #   the label.
+    if isinstance(offset, str):
+        return partial(_using_label, src_1, src_2, offset)
+    
+    # If here, offset should be an immediate (int)
     opcode = '000101'
     offset -= 1
     return mips_instruction_immediate_encoding(opcode, src_1, src_2, offset)
@@ -341,13 +396,35 @@ def bc1fl(offset):
     return mips_instruction_immediate_encoding('010001', int('01000',2), int('000' + '1' + '0', 2), offset)
 
 
-def mips(instruction_bin_strings : list[str], endianness : str = "little") -> bytes:
+def mips(instruction_bin_strings : list[str | Callable], endianness : str = "little") -> bytes:
     '''
     Converts a list of machine code (i.e. binary) strings to a bytes object
     '''
     instructions = bytearray()
 
-    for instruction in instruction_bin_strings:
+    # Process any labels
+    line_number = 1
+    label_indices = []
+    labels = {}
+    for index, instruction in enumerate(instruction_bin_strings):
+        if isinstance(instruction, str) and instruction.startswith("LABEL "):
+            labels[instruction[len("LABEL "):]] = line_number
+            label_indices.append(index)
+            line_number -= 1
+        line_number += 1
+    
+    removed_labels = 0
+    for index in label_indices:
+        instruction_bin_strings.pop(index - removed_labels)
+        removed_labels += 1
+
+    # Now that labels are removed, process all actual MIPS instructions
+    for index, instruction in enumerate(instruction_bin_strings):
+        # Handle any branch instructions expecting a label
+        if isinstance(instruction, Callable): # Branch functions expecting a label return a partial function, so we can pass the current line number and label dictionary at this time
+            instruction = instruction(index+1, labels) # Replaces the Callable with the resulting binary string
+
+        # From this point on, the instruction is assumed to be a binary string
         if len(instruction) != 32:
             raise Exception("Provided MIPS instruction not 32 bits, invalid instruction")
         
@@ -364,6 +441,9 @@ def mips(instruction_bin_strings : list[str], endianness : str = "little") -> by
             raise Exception("Invalid endianness value, must be either 'little' or 'big'")
     
     return instructions
+
+def label(string : str) -> str:
+    return 'LABEL ' + string # Needed in order to differentiate these strings from the binary strings
 
 
 def get_lower_nibble(word: int):

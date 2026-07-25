@@ -1019,7 +1019,14 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
                 data += [0x15, 0x16]
             else:
                 raise Exception("enforce_area_access, decorations table: Invalid region?")
-            
+        
+        # Labels
+        GET_REQUIREMENTS = "Get Requirements"
+        ACCESS_DENIED = "Access Denied"
+        ACCESS_GRANTED = "Access Granted"
+        HANDLE_WHITE_MOUNTAIN = "Handle White Mountain"
+        TEST_REQUIREMENTS = "Test Requirements"
+
         # DECORATIONS MODE PATCH
         pine.write_bytes(HOOK_ADDR_ENFORCE_AREA_ACCESS, mips([
             # Create a stack frame of 4 bytes to store the current return address
@@ -1034,6 +1041,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             # Add the current chunk ID * 2 to ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE to get
             #   the correct index in the table (since each chunk has two bytes, one for each item ID).
             # Then, store the 1st byte in t1, and the 2nd in t2.
+            label(GET_REQUIREMENTS),
             lui(t1, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE)),
             ori(t1, t1, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE)),
             addu(t1, t1, t0),
@@ -1043,7 +1051,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
 
             # If the first byte is zero, this means that the chunk has no access requirements.
             #   Jump to the end of the function, where we'll return 1.
-            beq(t1, zero, 53),
+            beq(t1, zero, ACCESS_GRANTED),
 
             # ---- HANDLE WINDMILLS CHUNK ----
             # If the first byte is 0xFF, this means that we're in the Windmills region.
@@ -1051,7 +1059,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             #   and part of it has requirements that match White Mountain. (Without physics exploits,
             #   you can't get on top of the waterfall / cliff unless you go through White Mountain).
             ori(t3, zero, 0xFF),
-            bne(t1, t3, 14),
+            bne(t1, t3, HANDLE_WHITE_MOUNTAIN),
             nop(),
 
             # If we're here, we're in Windmills.
@@ -1070,7 +1078,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             #   (0x2B), then branch back up in order to read from that part of the access requirements
             #   table instead.
             addiu(t0, zero, 0x2B),
-            beq(zero, zero, -17),
+            beq(zero, zero, GET_REQUIREMENTS),
             nop(),
 
             # If we're here, we're in the White Mountain section of Windmills
@@ -1078,7 +1086,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             #   town (e.g. 0x25), then branch back up.
             # We do *not* want to use the main town ID (0x23) as it *also* is a special case, see below.
             addiu(t0, zero, 0x25),
-            beq(zero, zero, -20),
+            beq(zero, zero, GET_REQUIREMENTS),
             nop(),
 
             # ---- HANDLE WHITE MOUNTAIN TOWN CHUNK ----
@@ -1089,8 +1097,9 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             #   (Especially since most of the river path leading up to it *is* part of Mushroom Road's chunk.)
             # The code below will redirect us to using Mushroom Road's requirements if we're far
             #   enough south from the town that we could have jumped off the waterfall.
+            label(HANDLE_WHITE_MOUNTAIN),
             ori(t3, zero, 0xFE),
-            bne(t1, t3, 14),
+            bne(t1, t3, TEST_REQUIREMENTS),
             nop(),
 
             # If we're here, we're in White Mountain proper
@@ -1107,18 +1116,19 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             # If we're here, we're in the White Mountain part of the chunk.
             # Set t0 to a different White Mountain chunk (such as 0x25) and branch back up.
             addiu(t0, zero, 0x25),
-            beq(zero, zero, -32),
+            beq(zero, zero, GET_REQUIREMENTS),
             nop(),
 
             # If we're here, we're in the Mushroom Road part of the chunk.
             # Set t0 to Mushroom Road's chunk ID (0x24) and branch back up.
             addiu(t0, zero, 0x24),
-            beq(zero, zero, -35),
+            beq(zero, zero, GET_REQUIREMENTS),
             nop(),
 
             # Store the address for where we'll store the final boolean return value
             #   (1 if the player can access, 0 if they can't)
             # TODO: this could be moved to the section following the next one?
+            label(TEST_REQUIREMENTS),
             lui(t3, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
             ori(t3, t3, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
 
@@ -1129,18 +1139,19 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             jal(0x23D488), # Call vanilla 'has item' function
             addiu(a2, zero, 0), # a2 appears to always be 0 when checking player inventory
 
-            bne(v0, zero, 16), # Jump to end if item was found
+            bne(v0, zero, ACCESS_GRANTED), # Jump to end if item was found
 
             addiu(a0, zero, 0xF),
             addiu(a1, t2, 0), # t2 has the 2nd item ID
             jal(0x23D488),
             addiu(a2, zero, 0),
 
-            bne(v0, zero, 11),
+            bne(v0, zero, ACCESS_GRANTED),
             nop(),
 
             # If we're here, the player did not have either of the needed decoration items.
             #   Display 'no access', set access bool to 0, and return.
+            label(ACCESS_DENIED),
             addiu(a0, zero, 0x11), # Horizontal value in screen space (i.e. how far to the right)
             addiu(a1, zero, 0x7), # Vertical value in screen space (i.e. how far down)
             lui(a2, get_upper_nibble(Addresses.ADDR_STRING_NO_ACCESS)),
@@ -1153,6 +1164,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
 
             # If we're here, the chunk either had no access requirements, or the player had
             #   at least one of the required decoration items. Set access bool to 1 and return.
+            label(ACCESS_GRANTED),
             lw(ra, 0, sp), # Load the return address we stored in the stack frame at the beginning back into ra
             addiu(v0, zero, 0x1), # Set return value to 1
             lui(t3, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),

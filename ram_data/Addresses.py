@@ -43,12 +43,62 @@ FUNC_PTR_CURRENCY_INPUT = 0x26D628
 # NOTE: Beginning of email pointers: 0x2da0f0
 # NOTE: Beginning of email strings (much more space): 0x329458
 ADDR_TEMP_SHORTENED_PART_NAME = 0x2DA630
-ADDR_AP_STAMP_STRING = 0x2DAE80
-ADDR_PART_SHOP_ITEM_CLASSIFICATIONS = 0x2DA650
+ADDR_PART_SHOP_AP_ITEM_CLASSIFICATIONS = 0x2DA650
 ADDR_SHOP_STRINGS = 0x329460
 OFFSET_SHOP_STRING_PLAYER_NAME = 42 # Max item name length is 41 characters + null terminator. Enforced by get_shop_strings, not Archipelago.
 OFFSET_SHOP_STRING_ITEM_CLASSIFICATION_PTR = 60 # Max player name in AP is 16 characters + a space at the beginning (for positioning in-game) + the null terminator.
 SHOP_STRING_LENGTH = 64
+
+# 5. Others
+# TODO: Should some of these be TableData variables instead?
+# ---------------------------
+# Used for tracking AP location completion, see 'write_ap_location_func' for details
+ADDR_TABLE_LENGTH_TABLE = 0x2da100
+
+# Stores data that enforce_area_access uses to determine whether the current region
+#   can be accessed by the player. (See that function for more details.)
+ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE = 0x2DA580
+
+# Will contain 1 if enforce_area_access determines that the player can interact with
+#   the chunk they are currently in. Otherwise, will contain 0.
+ADDR_CHUNK_ACCESS_BOOL = 0x2DA57F
+
+# New strings used in AP
+ADDR_STRING_AP_ITEM = 0x2DA610 # Used in the 'get item' textbox, instead of the vanilla item name
+ADDR_STRING_NO_ACCESS = 0x2DA620 # Used when the player does not meet the access requirements of the current region
+ADDR_STRING_AP_STAMPS = 0x2DAE80 # Used in Stamp mode when displaying the player's current AP stamp item count
+
+# Stores the ID of the world chunk the player is currently in
+ADDR_CURRENT_WORLD_CHUNK = 0x335954
+
+# Stores the room table value of the current room, and its index within that table.
+#   Every world chunk that has at least one room in it has a 'room table'.
+#   However, a world chunk's ID generally does not match its corresponding room table
+#   value (if ever?)
+#   Examples:
+#   - My City's room table value is 0x9, but its world chunk is 0xB
+#   - Peach Town's room table is 0x1, but its world chunk is 0x2B
+ADDR_CURRENT_ROOM_INDEX = 0x335921
+ADDR_CURRENT_ROOM_TABLE = 0x335923
+
+# When the part selection menu appears, RTA stores one of the following values at the below address.
+#   Used for displaying different UI details in different contexts.
+#   (Additional bytes after this one seem to be used for some of the details.)
+# 0: When opened in a Q's Factory
+# 1: When opened in a parts shop
+# 2: When opened in a body shop
+# 3: ???
+# 4: When opened in the Recycle Shop
+ADDR_PART_SELECTION_MENU_STYLE = 0x1757B88
+
+# Contains (what appears to be) the player's relative position within the current chunk,
+#   represented as 3 word-length floating point numbers.
+# First word is west/east position, second is elevation, third is north/south position (i.e. x, y, and z)
+ADDR_POSITION_IN_CHUNK = 0x177ACE0
+
+# Stores the percent modifier for part costs (defaults to 100)
+ADDR_AP_PART_COST_MODIFIER = 0x2DAE90
+
 
 class StorageType(StrEnum):
     Word = "Word" # Money is stored in a 32-bit signed integer (yes, signed)

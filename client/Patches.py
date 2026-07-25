@@ -151,13 +151,13 @@ def hook_currency_input_to_init_ap_item_index(pine : Pine):
     pine.write_bytes(HOOK_ADDR_INIT_AP_ITEM_INDEX, mips([
         # Set AP index to 0x1
         addiu(t0, zero, 0x1),
-        lui(t1, 0x177),
-        ori(t1, t1, 0xFDAC),
+        lui(t1, get_upper_nibble(Addresses.ap_item_index.address)),
+        ori(t1, t1, get_lower_nibble(Addresses.ap_item_index.address)),
         sb(t0, 0, t1),
 
         # Set boolean (at 0x2DA0F0) to indicate to the server that we are ready to receive the AP save ID to 1
-        lui(t1, 0x2D),
-        ori(t1, t1, 0xA0F0),
+        lui(t1, get_upper_nibble(Addresses.ready_for_ap_save_id.address)),
+        ori(t1, t1, get_lower_nibble(Addresses.ready_for_ap_save_id.address)),
         sb(t0, 0, t1),
 
         # Set boolean (at 0x2DA0F1) to indicate to the server that we're ready to receive the current My City part shop inventory
@@ -181,8 +181,8 @@ def hook_game_continue_to_reset_my_city_part_shop(pine : Pine):
     ]))
 
     pine.write_bytes(HOOK_ADDR_HANDLE_MY_CITY_PARTS_SHOP_ON_CONTINUE, mips([
-        lui(t0, 0x2D),
-        ori(t0, t0, 0xA0F1),
+        lui(t0, get_upper_nibble(Addresses.ready_for_my_city_part_shop_inventory.address)),
+        ori(t0, t0, get_lower_nibble(Addresses.ready_for_my_city_part_shop_inventory.address)),
         addiu(t1, t1, 0x1),
         sb(t1, 0, t0),
         jr(ra),
@@ -221,7 +221,7 @@ def write_ap_location_func(pine : Pine):
     # 0x97 (all 151 bodies) + 0x0D (all 13 tires) + 0x8 (RS Magnum index in engine table) = 0xAC hex, or 172 decimal
     #
     table_length_table = bytes([0x97, 0x0D, 0x0C, 0x05, 0x06, 0x04, 0x04, 0x0F, 0x03, 0x02, 0x03, 0x09, 0x02, 0x0F, 0x0B, 0x30])
-    pine.write_bytes(0x2da100, table_length_table) # Just prior to all ASM patches
+    pine.write_bytes(Addresses.ADDR_TABLE_LENGTH_TABLE, table_length_table) # Just prior to all ASM patches
 
     pine.write_bytes(HOOK_ADDR_AP_LOCATION_FUNC_READ, mips([
         # To read a bit, start here. Set t7 to 1 (checked later).
@@ -246,8 +246,8 @@ def write_ap_location_func(pine : Pine):
         addiu(t2, a1, 0),
 
         # Load the address to the table length table
-        lui(t1, 0x002D),
-        ori(t1, t1, 0xA100),
+        lui(t1, get_upper_nibble(Addresses.ADDR_TABLE_LENGTH_TABLE)),
+        ori(t1, t1, get_lower_nibble(Addresses.ADDR_TABLE_LENGTH_TABLE)),
 
         # Loop
         # Add the part totals for each part type until we've reached this part's type.
@@ -273,14 +273,14 @@ def write_ap_location_func(pine : Pine):
         nop(),
 
         # Set table to NPC reward table
-        lui(t1, 0x0178),
-        addiu(t1, t1, 0x2A00),
+        lui(t1, get_upper_nibble(Addresses.items_obtained.address)),
+        addiu(t1, t1, get_lower_nibble(Addresses.items_obtained.address)),
         beq(zero, zero, 4),
         nop(),
 
         # Set table to shop purchases table
-        lui(t1, 0x0178),
-        addiu(t1, t1, 0x29D0),
+        lui(t1, get_upper_nibble(Addresses.shop_purchases.address)),
+        addiu(t1, t1, get_lower_nibble(Addresses.shop_purchases.address)),
 
         # Loop
         # Continue subtracting 8 from the total item count until it would go negative.
@@ -334,8 +334,8 @@ def hook_shop_purchases(pine : Pine):
     #   If it's not, run our AP location check function (defined above).
     #   If it is, jump (not jal) to the normal shop function that updates your inventory.
     pine.write_bytes(HOOK_ADDR_SHOP_PURCHASES, mips([
-        lui(t0, 0x0033),
-        addiu(t0, t0, 0x5923),
+        lui(t0, get_upper_nibble(Addresses.ADDR_CURRENT_ROOM_TABLE)),
+        addiu(t0, t0, get_lower_nibble(Addresses.ADDR_CURRENT_ROOM_TABLE)),
         lbu(t0, 0, t0), # was lb
         addiu(t1, zero, 0x9),
         bne(t0, t1, 4),
@@ -365,15 +365,16 @@ def hook_npc_rewards(pine : Pine):
 
     # 2. In our hook, instead return the address to our new "AP Item" string.
     pine.write_bytes(HOOK_ADDR_NPC_REWARDS, mips([
-        lui(v0, 0x002D),
-        ori(v0, v0, 0xA610),
+        lui(v0, get_upper_nibble(Addresses.ADDR_STRING_AP_ITEM)),
+        ori(v0, v0, get_lower_nibble(Addresses.ADDR_STRING_AP_ITEM)),
         jr(ra),
         nop()
     ]))
 
     # 3. Write the 'AP Item' string.
-    pine.write_bytes(0x2DA610, bytes([0x41, 0x50, 0x20, 0x49]))
-    pine.write_bytes(0x2DA614, bytes([0x74, 0x65, 0x6d, 0x00]))
+    addr = Addresses.ADDR_STRING_AP_ITEM
+    pine.write_bytes(addr, bytes([0x41, 0x50, 0x20, 0x49]))
+    pine.write_bytes(addr+4, bytes([0x74, 0x65, 0x6d, 0x00]))
 
     # Replace 'Body' string used when receiving a body from an NPC with just a double-quote
     #   (since it needs to be there to be used as the opening quote in "AP Item")
@@ -484,8 +485,8 @@ def hook_license_upgrades(pine : Pine):
         sllv(t7, t7, a3),
 
         # Load AP license location bitfield
-        lui(t6, 0x178),
-        addiu(t6, t6, 0x2A30),
+        lui(t6, get_upper_nibble(Addresses.license_completions.address)),
+        addiu(t6, t6, get_lower_nibble(Addresses.license_completions.address)),
         lbu(t6, 0, t6), # was lb
 
         # Bitwise and. Result is 0 if we haven't completed this license location yet, not 0 if we have.
@@ -521,8 +522,8 @@ def hook_license_upgrades(pine : Pine):
         addiu(v0, zero, 1),         # Init license bit slot to 1
         addiu(v1, v1, -1),          # Number of left shifts to apply to 1 
         sllv(v1, v0, v1),           # Apply shift. Result is the bit that corresponds to this license.
-        lui(v0, 0x0178),
-        addiu(v0, v0, 0x2A30),
+        lui(v0, get_upper_nibble(Addresses.license_completions.address)),
+        addiu(v0, v0, get_lower_nibble(Addresses.license_completions.address)),
         lbu(t7, 0, v0), # was lb    # Load current AP license bitfield
         or_(v1, v1, t7),
         sb(v1, 0, v0),              # Store updated AP license bitfield
@@ -560,12 +561,12 @@ def change_shop_item_quantity_display_to_ap(pine : Pine):
     # Is this the My City part shop? If so, jump to the normal function. 
     # Otherwise, call the AP location check function
     pine.write_bytes(HOOK_ADDR_PARTS_SHOP_CHECK_IF_LOCATION_COMPLETE, mips([
-        lui(t0, 0x0033),
-        ori(t0, t0, 0x5921),
+        lui(t0, get_upper_nibble(Addresses.ADDR_CURRENT_ROOM_INDEX)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_CURRENT_ROOM_INDEX)),
         lbu(t1, 0, t0),
         addiu(t2, zero, 1),
         bne(t1, t2, 7),
-        lbu(t1, 2, t0),
+        lbu(t1, 2, t0), # get room table value, 2 bytes away from room index
         addiu(t2, zero, 9),
         bne(t1, t2, 4),
         nop(),
@@ -587,16 +588,16 @@ def change_shop_item_quantity_display_to_ap(pine : Pine):
     #     displayed text "You have it" or "You don't have it".
     #     Otherwise, jump to the part that could make it "You have #".
     pine.write_bytes(HOOK_ADDR_PARTS_SHOP_OWNED_QUANTITY_STRING_HANDLING, mips([
-        lui(t0, 0x0033),
-        ori(t0, t0, 0x5921),
+        lui(t0, get_upper_nibble(Addresses.ADDR_CURRENT_ROOM_INDEX)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_CURRENT_ROOM_INDEX)),
         lbu(t1, 0, t0),
         addiu(t2, zero, 1),
         bne(t1, t2, 9),
-        lbu(t1, 2, t0),
+        lbu(t1, 2, t0), # get room table value, 2 bytes away from room index
         addiu(t2, zero, 9),
         bne(t1, t2, 6),
-        lui(t0, 0x0175),
-        ori(t0, t0, 0x7B88),
+        lui(t0, get_upper_nibble(Addresses.ADDR_PART_SELECTION_MENU_STYLE)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_PART_SELECTION_MENU_STYLE)),
         lw(v1, 0, t0),
         j(0x2472b0),    # If My City part shop
         nop(),
@@ -618,12 +619,12 @@ def patch_npc_equips(pine : Pine):
     ]))
 
     pine.write_bytes(HOOK_ADDR_NPC_EQUIPS, mips([
-        lui(t0, 0x0033),
-        ori(t0, t0, 0x5921),
+        lui(t0, get_upper_nibble(Addresses.ADDR_CURRENT_ROOM_INDEX)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_CURRENT_ROOM_INDEX)),
         lbu(t1, 0, t0),
         addiu(t2, zero, 7),
         bne(t1, t2, 7),
-        lbu(t1, 2, t0),
+        lbu(t1, 2, t0), # get room table value, 2 bytes away from room index
         addiu(t2, zero, 6),
         bne(t1, t2, 4),
         nop(),
@@ -715,15 +716,15 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
 
         match(description["item_classification"]):
             case ItemClassification.progression:
-                temp = Addresses.ADDR_PART_SHOP_ITEM_CLASSIFICATIONS
+                temp = Addresses.ADDR_PART_SHOP_AP_ITEM_CLASSIFICATIONS
             case ItemClassification.useful:
-                temp = Addresses.ADDR_PART_SHOP_ITEM_CLASSIFICATIONS + 0x10
+                temp = Addresses.ADDR_PART_SHOP_AP_ITEM_CLASSIFICATIONS + 0x10
             case ItemClassification.filler:
-                temp = Addresses.ADDR_PART_SHOP_ITEM_CLASSIFICATIONS + 0x18
+                temp = Addresses.ADDR_PART_SHOP_AP_ITEM_CLASSIFICATIONS + 0x18
             case ItemClassification.trap:
-                temp = Addresses.ADDR_PART_SHOP_ITEM_CLASSIFICATIONS + 0x20
+                temp = Addresses.ADDR_PART_SHOP_AP_ITEM_CLASSIFICATIONS + 0x20
             case _:
-                temp = Addresses.ADDR_PART_SHOP_ITEM_CLASSIFICATIONS + 0x28
+                temp = Addresses.ADDR_PART_SHOP_AP_ITEM_CLASSIFICATIONS + 0x28
         
         item_classification_addr = list(temp.to_bytes(4))
         item_classification_addr.reverse()
@@ -734,26 +735,27 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
         pine.write_bytes(addr+Addresses.OFFSET_SHOP_STRING_ITEM_CLASSIFICATION_PTR, item_classification_addr)
         
     # 'Progression' string
-    pine.write_bytes(0x2DA650, bytes([0x20, 0x50, 0x72, 0x6f]))
-    pine.write_bytes(0x2DA654, bytes([0x67, 0x72, 0x65, 0x73]))
-    pine.write_bytes(0x2DA658, bytes([0x73, 0x69, 0x6f, 0x6e]))
-    pine.write_bytes(0x2DA65C, bytes([0x00, 0x00, 0x00, 0x00]))
+    addr = Addresses.ADDR_PART_SHOP_AP_ITEM_CLASSIFICATIONS
+    pine.write_bytes(addr, bytes([0x20, 0x50, 0x72, 0x6f]))
+    pine.write_bytes(addr+4, bytes([0x67, 0x72, 0x65, 0x73]))
+    pine.write_bytes(addr+8, bytes([0x73, 0x69, 0x6f, 0x6e]))
+    pine.write_bytes(addr+12, bytes([0x00, 0x00, 0x00, 0x00]))
 
     # 'Useful' string
-    pine.write_bytes(0x2DA660, bytes([0x20, 0x55, 0x73, 0x65]))
-    pine.write_bytes(0x2DA664, bytes([0x66, 0x75, 0x6c, 0x00]))
+    pine.write_bytes(addr+16, bytes([0x20, 0x55, 0x73, 0x65]))
+    pine.write_bytes(addr+20, bytes([0x66, 0x75, 0x6c, 0x00]))
 
     # 'Filler' string
-    pine.write_bytes(0x2DA668, bytes([0x20, 0x46, 0x69, 0x6c]))
-    pine.write_bytes(0x2DA66C, bytes([0x6c, 0x65, 0x72, 0x00]))
+    pine.write_bytes(addr+24, bytes([0x20, 0x46, 0x69, 0x6c]))
+    pine.write_bytes(addr+28, bytes([0x6c, 0x65, 0x72, 0x00]))
 
     # 'Trap' string
-    pine.write_bytes(0x2DA670, bytes([0x20, 0x54, 0x72, 0x61]))
-    pine.write_bytes(0x2DA674, bytes([0x70, 0x00, 0x00, 0x00]))
+    pine.write_bytes(addr+32, bytes([0x20, 0x54, 0x72, 0x61]))
+    pine.write_bytes(addr+36, bytes([0x70, 0x00, 0x00, 0x00]))
 
     # 'Other' string
-    pine.write_bytes(0x2DA678, bytes([0x20, 0x4f, 0x74, 0x68]))
-    pine.write_bytes(0x2DA67C, bytes([0x65, 0x72, 0x00, 0x00]))
+    pine.write_bytes(addr+40, bytes([0x20, 0x4f, 0x74, 0x68]))
+    pine.write_bytes(addr+44, bytes([0x65, 0x72, 0x00, 0x00]))
 
     # ------------------------------------------
 
@@ -787,8 +789,8 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
         #   while changing our parts in a Q's Factory.)
         #
         # Load shop type value
-        lui(t7, 0x0175),
-        ori(t7, t7, 0x7B88),
+        lui(t7, get_upper_nibble(Addresses.ADDR_PART_SELECTION_MENU_STYLE)),
+        ori(t7, t7, get_lower_nibble(Addresses.ADDR_PART_SELECTION_MENU_STYLE)),
         lbu(t7, 0, t7),
         addiu(t6, zero, 0x1),
 
@@ -800,8 +802,8 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
 
         # Check if this is the My City part shop. If so, return
         addiu(t7, zero, 0x9),
-        lui(t6, 0x0033),
-        ori(t6, t6, 0x5923),
+        lui(t6, get_upper_nibble(Addresses.ADDR_CURRENT_ROOM_TABLE)),
+        ori(t6, t6, get_lower_nibble(Addresses.ADDR_CURRENT_ROOM_TABLE)),
         lbu(t6, 0, t6),
         bne(t7, t6, 4),
         nop(),
@@ -813,8 +815,8 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
         addiu(t6, zero, 0),
 
         # Load address to table_length_table
-        lui(t7, 0x002D),
-        ori(t7, t7, 0xA100),
+        lui(t7, get_upper_nibble(Addresses.ADDR_TABLE_LENGTH_TABLE)),
+        ori(t7, t7, get_lower_nibble(Addresses.ADDR_TABLE_LENGTH_TABLE)),
 
         # Iterate through table_length_table and add part counts of all prior part types
         beq(a0, zero, 6),
@@ -832,8 +834,8 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
         sll(t6, t6, 0x6),
 
         # Get address of part descriptions
-        lui(t7, 0x0032),
-        ori(t7, t7, 0x9460),
+        lui(t7, get_upper_nibble(Addresses.ADDR_SHOP_STRINGS)),
+        ori(t7, t7, get_lower_nibble(Addresses.ADDR_SHOP_STRINGS)),
 
         # Add ID * 64 to that address to get the address of this part description
         addu(t7, t7, t6),
@@ -857,8 +859,8 @@ def hook_shops_to_display_ap_item_strings(pine : Pine, shop_strings : list):
         # Line 0 - Get truncated version of item name
         # Copy characters to the temp address location, return the address to it
         addiu(a2, a2, -0x1),
-        lui(t6, 0x002D),
-        ori(t6, t6, 0xA630),
+        lui(t6, get_upper_nibble(Addresses.ADDR_TEMP_SHORTENED_PART_NAME)),
+        ori(t6, t6, get_lower_nibble(Addresses.ADDR_TEMP_SHORTENED_PART_NAME)),
         addu(v0, zero, t6),
         addiu(t4, zero, 0x12), # Max character count is 18 (19 total when null terminator added)
 
@@ -1020,78 +1022,144 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             
         # DECORATIONS MODE PATCH
         pine.write_bytes(HOOK_ADDR_ENFORCE_AREA_ACCESS, mips([
-            # TODO: Add comments
+            # Create a stack frame of 4 bytes to store the current return address
             addiu(sp, sp, -0x4),
             sw(ra, 0, sp),
-            lui(t0, 0x0033),
-            addiu(t0, t0, 0x5954),
+            
+            # Get the current world chunk ID
+            lui(t0, get_upper_nibble(Addresses.ADDR_CURRENT_WORLD_CHUNK)),
+            addiu(t0, t0, get_lower_nibble(Addresses.ADDR_CURRENT_WORLD_CHUNK)),
             lbu(t0, 0, t0),
-            lui(t1, 0x002D),
-            ori(t1, t1, 0xA580),
+
+            # Add the current chunk ID * 2 to ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE to get
+            #   the correct index in the table (since each chunk has two bytes, one for each item ID).
+            # Then, store the 1st byte in t1, and the 2nd in t2.
+            lui(t1, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE)),
+            ori(t1, t1, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE)),
             addu(t1, t1, t0),
             addu(t1, t1, t0),
             lbu(t2, 1, t1),
             lbu(t1, 0, t1),
+
+            # If the first byte is zero, this means that the chunk has no access requirements.
+            #   Jump to the end of the function, where we'll return 1.
             beq(t1, zero, 53),
+
+            # ---- HANDLE WINDMILLS CHUNK ----
+            # If the first byte is 0xFF, this means that we're in the Windmills region.
+            #   Windmills is a special case, as part of the region has no access requirements,
+            #   and part of it has requirements that match White Mountain. (Without physics exploits,
+            #   you can't get on top of the waterfall / cliff unless you go through White Mountain).
             ori(t3, zero, 0xFF),
             bne(t1, t3, 14),
             nop(),
-            lui(t3, 0x0177),
-            ori(t3, t3, 0xACE0),
+
+            # If we're here, we're in Windmills.
+            # To figure out which side of Windmills we're on, take the two most significant bytes
+            #   of the player's X position and compare them to 0x43B0. If it's less than that, we're
+            #   in the White Mountain section. Otherwise, we're in the Peach Town section.
+            lui(t3, get_upper_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
+            ori(t3, t3, get_lower_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
             lhu(t3, 2, t3),
             slti(t3, t3, 0x43B0),
             bne(t3, zero, 5),
             nop(),
+
+            # If we're here, we're in the Peach Town section of Windmills
+            # t0 is currently expected to contain the current world chunk ID - set it to Peach Town's
+            #   (0x2B), then branch back up in order to read from that part of the access requirements
+            #   table instead.
             addiu(t0, zero, 0x2B),
             beq(zero, zero, -17),
             nop(),
-            addiu(t0, zero, 0x23),
+
+            # If we're here, we're in the White Mountain section of Windmills
+            # Same as the lines above, but set it to a White Mountain chunk ID that is *not* the main
+            #   town (e.g. 0x25), then branch back up.
+            # We do *not* want to use the main town ID (0x23) as it *also* is a special case, see below.
+            addiu(t0, zero, 0x25),
             beq(zero, zero, -20),
             nop(),
+
+            # ---- HANDLE WHITE MOUNTAIN TOWN CHUNK ----
+            # If the first byte is 0xFE, that means we're in the chunk containing White Mountain proper.
+            #   White Mountain is also a special case, as it contains the Moonstone, the gem at
+            #   the bottom of the waterfall. ...This is awkward, as IMO most players would expect
+            #   the bottom of the waterfall to be considered part of Mushroom Road, not White Mountain.
+            #   (Especially since most of the river path leading up to it *is* part of Mushroom Road's chunk.)
+            # The code below will redirect us to using Mushroom Road's requirements if we're far
+            #   enough south from the town that we could have jumped off the waterfall.
             ori(t3, zero, 0xFE),
             bne(t1, t3, 14),
             nop(),
-            lui(t3, 0x0177),
-            ori(t3, t3, 0xACE0),
+
+            # If we're here, we're in White Mountain proper
+            #   Take the two most significant bytes of the player's Z position and compare it to 0x4310.
+            #   If it's less than that, we're too far south, and we're in the Mushroom Road section.
+            #   Otherwise, we're in White Mountain.
+            lui(t3, get_upper_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
+            ori(t3, t3, get_lower_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
             lhu(t3, 10, t3),
             slti(t3, t3, 0x4310),
             bne(t3, zero, 5),
             nop(),
+
+            # If we're here, we're in the White Mountain part of the chunk.
+            # Set t0 to a different White Mountain chunk (such as 0x25) and branch back up.
             addiu(t0, zero, 0x25),
             beq(zero, zero, -32),
             nop(),
+
+            # If we're here, we're in the Mushroom Road part of the chunk.
+            # Set t0 to Mushroom Road's chunk ID (0x24) and branch back up.
             addiu(t0, zero, 0x24),
             beq(zero, zero, -35),
             nop(),
-            lui(t3, 0x002D),
-            ori(t3, t3, 0xA57F),
+
+            # Store the address for where we'll store the final boolean return value
+            #   (1 if the player can access, 0 if they can't)
+            # TODO: this could be moved to the section following the next one?
+            lui(t3, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+            ori(t3, t3, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+
+            # Call the game's 'has item' function, passing the IDs of the two decoration
+            #   items this region is looking for.
+            addiu(a0, zero, 0xF), # 0xF is the collectibles category
+            addiu(a1, t1, 0), # t1 has the 1st item ID
+            jal(0x23D488), # Call vanilla 'has item' function
+            addiu(a2, zero, 0), # a2 appears to always be 0 when checking player inventory
+
+            bne(v0, zero, 16), # Jump to end if item was found
+
             addiu(a0, zero, 0xF),
-            addiu(a1, t1, 0),
+            addiu(a1, t2, 0), # t2 has the 2nd item ID
             jal(0x23D488),
             addiu(a2, zero, 0),
-            bne(v0, zero, 16),
-            addiu(a0, zero, 0xF),
-            addiu(a1, t2, 0),
-            jal(0x23D488),
-            addiu(a2, zero, 0),
+
             bne(v0, zero, 11),
             nop(),
-            addiu(a0, zero, 0x11),
-            addiu(a1, zero, 0x7),
-            lui(a2, 0x002D),
-            ori(a2, a2, 0xA620),
-            addiu(a3, zero, 0x6),
-            lw(ra, 0, sp),
-            addiu(sp, sp, 0x4),
-            j(0x203FC8),
-            sb(v0, 0, t3),
-            lw(ra, 0, sp),
-            addiu(v0, zero, 0x1),
-            lui(t3, 0x002D),
-            ori(t3, t3, 0xA57F),
-            addiu(sp, sp, 0x4),
-            jr(ra),
-            sb(v0, 0, t3),
+
+            # If we're here, the player did not have either of the needed decoration items.
+            #   Display 'no access', set access bool to 0, and return.
+            addiu(a0, zero, 0x11), # Horizontal value in screen space (i.e. how far to the right)
+            addiu(a1, zero, 0x7), # Vertical value in screen space (i.e. how far down)
+            lui(a2, get_upper_nibble(Addresses.ADDR_STRING_NO_ACCESS)),
+            ori(a2, a2, get_lower_nibble(Addresses.ADDR_STRING_NO_ACCESS)),
+            addiu(a3, zero, 0x6), # a3 contains the text color, 0x6 is red
+            lw(ra, 0, sp), # Load the return address we stored in the stack frame at the beginning back into ra
+            addiu(sp, sp, 0x4), # Move the stack pointer back to the position it was in before this function ran
+            j(0x203FC8), # Jump to the function that displays text on screen (which will eventually jr(ra) to our return address)
+            sb(v0, 0, t3), # Store 0 at ADDR_CHUNK_ACCESS_BOOL 
+
+            # If we're here, the chunk either had no access requirements, or the player had
+            #   at least one of the required decoration items. Set access bool to 1 and return.
+            lw(ra, 0, sp), # Load the return address we stored in the stack frame at the beginning back into ra
+            addiu(v0, zero, 0x1), # Set return value to 1
+            lui(t3, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+            ori(t3, t3, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+            addiu(sp, sp, 0x4), # Move the stack pointer back to the position it was in before this function ran
+            jr(ra), # Return to the calling function
+            sb(v0, 0, t3), # Store 1 at ADDR_CHUNK_ACCESS_BOOL
             nop()
         ]))
 
@@ -1128,14 +1196,18 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
         
         # STAMP MODE PATCH
         pine.write_bytes(HOOK_ADDR_ENFORCE_AREA_ACCESS, mips([
-            # TODO: Add comments
+            # Mostly the same as the decorations mode version of the patch above
+            # TODO: Can these be merged in a way that is compatible with the patch verification system?
+            # Maybe write decorations patch first, and then re-patch differences in if in stamps mode?
+            # Normally, having one patch overwrite another would cause the patch verification system to
+            #   return a failure, but I think it would work fine if the two are in the same function?
             addiu(sp, sp, -0x4),
             sw(ra, 0, sp),
-            lui(t0, 0x0033),
-            addiu(t0, t0, 0x5954),
+            lui(t0, get_upper_nibble(Addresses.ADDR_CURRENT_WORLD_CHUNK)),
+            addiu(t0, t0, get_lower_nibble(Addresses.ADDR_CURRENT_WORLD_CHUNK)),
             lbu(t0, 0, t0),
-            lui(t1, 0x002D),
-            ori(t1, t1, 0xA580),
+            lui(t1, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE)),
+            ori(t1, t1, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE)),
             addu(t1, t1, t0),
             addu(t1, t1, t0),
             nop(),
@@ -1145,8 +1217,8 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             ori(t3, zero, 0xFF),
             bne(t1, t3, 14),
             nop(),
-            lui(t3, 0x0177),
-            ori(t3, t3, 0xACE0),
+            lui(t3, get_upper_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
+            ori(t3, t3, get_lower_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
             lhu(t3, 2, t3),
             slti(t3, t3, 0x43B0),
             bne(t3, zero, 5),
@@ -1154,14 +1226,14 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             addiu(t0, zero, 0x2B),
             beq(zero, zero, -18),
             nop(),
-            addiu(t0, zero, 0x23),
+            addiu(t0, zero, 0x25),
             beq(zero, zero, -21),
             nop(),
             ori(t3, zero, 0xFE),
             bne(t1, t3, 14),
             nop(),
-            lui(t3, 0x0177),
-            ori(t3, t3, 0xACE0),
+            lui(t3, get_upper_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
+            ori(t3, t3, get_lower_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
             lhu(t3, 10, t3),
             slti(t3, t3, 0x4310),
             bne(t3, zero, 5),
@@ -1172,20 +1244,19 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             addiu(t0, zero, 0x24),
             beq(zero, zero, -36),
             nop(),
-            # Save file location for AP stamp count: 0x1782A31 (next to license checks)
-            lui(t3, 0x0178),
-            ori(t3, t3, 0x2A31),
+            lui(t3, get_upper_nibble(Addresses.ap_stamps_received.address)),
+            ori(t3, t3, get_lower_nibble(Addresses.ap_stamps_received.address)),
             lbu(t3, 0, t3),
             addiu(t3, t3, 0x1),
-            slt(v0, t1, t3),
-            lui(t3, 0x002D),
-            ori(t3, t3, 0xA57F),
+            slt(v0, t1, t3), # Are the number of AP stamps received less than the number needed to access this region?
+            lui(t3, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+            ori(t3, t3, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
             bne(v0, zero, 11),
             nop(),
             addiu(a0, zero, 0x11),
             addiu(a1, zero, 0x7),
-            lui(a2, 0x002D),
-            ori(a2, a2, 0xA620),
+            lui(a2, get_upper_nibble(Addresses.ADDR_STRING_NO_ACCESS)),
+            ori(a2, a2, get_lower_nibble(Addresses.ADDR_STRING_NO_ACCESS)),
             addiu(a3, zero, 0x6),
             lw(ra, 0, sp),
             addiu(sp, sp, 0x4),
@@ -1193,8 +1264,8 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             sb(v0, 0, t3),
             lw(ra, 0, sp),
             addiu(v0, zero, 0x1),
-            lui(t3, 0x002D),
-            ori(t3, t3, 0xA57F),
+            lui(t3, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+            ori(t3, t3, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
             addiu(sp, sp, 0x4),
             jr(ra),
             sb(v0, 0, t3),
@@ -1203,7 +1274,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
 
         # In stamp mode, display the number of AP stamp items received in the Stamps page in the Notebook
         # Part 1 - Write "AP stamps: " string
-        addr = 0x2DAE80 # Ran out of room in the other location, moving lower
+        addr = Addresses.ADDR_STRING_AP_STAMPS # Ran out of room in the other location, moving lower
         pine.write_bytes(addr+0, bytes([0x41, 0x50, 0x20, 0x53]))
         pine.write_bytes(addr+4, bytes([0x74, 0x61, 0x6d, 0x70]))
         pine.write_bytes(addr+8, bytes([0x73, 0x3a, 0x20]))
@@ -1220,11 +1291,11 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
         pine.write_bytes(HOOK_ADDR_DISPLAY_AP_STAMP_COUNT, mips([
             addiu(sp, sp, -0x4),
             sw(ra, 0, sp),
-            lui(a0, 0x0178),
-            ori(a0, a0, 0x2A31),
+            lui(a0, get_upper_nibble(Addresses.ap_stamps_received.address)),
+            ori(a0, a0, get_lower_nibble(Addresses.ap_stamps_received.address)),
             lbu(a0, 0, a0),
-            lui(a2, 0x002D),
-            ori(a2, a2, 0xAE80),
+            lui(a2, get_upper_nibble(Addresses.ADDR_STRING_AP_STAMPS)),
+            ori(a2, a2, get_lower_nibble(Addresses.ADDR_STRING_AP_STAMPS)),
             sb(zero, 0xB, a2),
             jal(HOOK_ADDR_CONVERT_DIGIT_IN_INT_TO_CHAR),
             addiu(a1, zero, 0x64),
@@ -1282,12 +1353,13 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
         ]))
 
     # Write the reference table into the game's memory
-    pine.write_bytes(0x2DA580, bytes(data))
+    pine.write_bytes(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE, bytes(data))
 
     # Write 'No access!' string
-    pine.write_bytes(0x2DA620, bytes([0x4e, 0x6f, 0x20, 0x61]))
-    pine.write_bytes(0x2DA624, bytes([0x63, 0x63, 0x65, 0x73]))
-    pine.write_bytes(0x2DA628, bytes([0x73, 0x21, 0x00, 0x00]))
+    addr = Addresses.ADDR_STRING_NO_ACCESS
+    pine.write_bytes(addr, bytes([0x4e, 0x6f, 0x20, 0x61]))
+    pine.write_bytes(addr+4, bytes([0x63, 0x63, 0x65, 0x73]))
+    pine.write_bytes(addr+8, bytes([0x73, 0x21, 0x00, 0x00]))
 
     # While in the overworld, if the player doesn't have access to the chunk they're currently in,
     #   display "No access!" in the top-left of the screen.
@@ -1299,13 +1371,13 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
 
     # NPCs and entrances
     pine.write_bytes(0x210EEC, mips([
-        jal(HOOK_ADDR_AREA_ACCESS_CHECK_NPCS_AND_ENTRANCES) # Jump-and-link to hook
+        jal(HOOK_ADDR_AREA_ACCESS_NPCS_AND_ENTRANCES) # Jump-and-link to hook
     ]))
     # Hook
-    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_CHECK_NPCS_AND_ENTRANCES, mips([
+    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_NPCS_AND_ENTRANCES, mips([
         beq(v0, zero, 8),
-        lui(t0, 0x002D),
-        ori(t0, t0, 0xA57F),
+        lui(t0, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
         lbu(t0, 0, t0), # was lb
         beq(t0, zero, 4),
         nop(),
@@ -1317,15 +1389,15 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
 
     # Q Coins
     pine.write_bytes(0x241C98, mips([
-        jal(HOOK_ADDR_AREA_ACCESS_CHECK_Q_COINS), # Jump-and-link to hook
+        jal(HOOK_ADDR_AREA_ACCESS_Q_COINS), # Jump-and-link to hook
         nop()
     ]))
     # Hook
-    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_CHECK_Q_COINS, mips([
+    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_Q_COINS, mips([
         bc1fl(9),
         nop(),
-        lui(t0, 0x002D),
-        ori(t0, t0, 0xA57F),
+        lui(t0, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
         lbu(t0, 0, t0), # was lb
         beq(t0, zero, 4),
         nop(),
@@ -1337,10 +1409,10 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
 
     # Overworld items
     # Hook
-    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_CHECK_OVERWORLD_ITEMS, mips([
+    pine.write_bytes(HOOK_ADDR_AREA_ACCESS_OVERWORLD_ITEMS, mips([
         addiu(t1, ra, 0),
-        lui(t0, 0x002D),
-        ori(t0, t0, 0xA57F),
+        lui(t0, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
         lbu(t0, 0, t0), # was lb
         bne(t0, zero, 5),
         nop(),
@@ -1371,7 +1443,7 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
 
     for address in overworld_item_collision_checks:
         pine.write_bytes(address+8, mips([
-            jal(HOOK_ADDR_AREA_ACCESS_CHECK_OVERWORLD_ITEMS) # Jump-and-link to hook
+            jal(HOOK_ADDR_AREA_ACCESS_OVERWORLD_ITEMS) # Jump-and-link to hook
         ]))
 
 def cost_percentage_modifier(pine : Pine, cost_percent_int : int):
@@ -1428,8 +1500,8 @@ def cost_percentage_modifier(pine : Pine, cost_percent_int : int):
         # t2 -- 2nd loop counter
 
         # Load cost modifier percentage into t0
-        lui(t0, 0x002D),
-        ori(t0, t0, 0xAE90),
+        lui(t0, get_upper_nibble(Addresses.ADDR_AP_PART_COST_MODIFIER)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_AP_PART_COST_MODIFIER)),
         lhu(t0, 0, t0),
 
         # Set t1 to 100

@@ -380,6 +380,6 @@ def get_upper_nibble(word: int):
     Get upper two bytes from a word
     """
     if word <= 0xFFFFFFFF and word >= 0:
-        return word & 0xFFFF0000
+        return (word & 0xFFFF0000) >> 16
     else:
         raise Exception("get_upper_nibble was passed either an int larger than a word, or a negative int")

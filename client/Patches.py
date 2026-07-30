@@ -986,6 +986,13 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
         CLOUD_HILL
     ]
 
+    # ASM labels used in both the versions of the patch (decorations and stamps)
+    GET_REQUIREMENTS = "Get Requirements"
+    ACCESS_DENIED = "Access Denied"
+    ACCESS_GRANTED = "Access Granted"
+    HANDLE_WHITE_MOUNTAIN = "Handle White Mountain"
+    TEST_REQUIREMENTS = "Test Requirements"
+    
     data = []
     # For decorations mode, the table values should contain the IDs of both
     #   items that can unlock access to the chunk.
@@ -1019,13 +1026,6 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
                 data += [0x15, 0x16]
             else:
                 raise Exception("enforce_area_access, decorations table: Invalid region?")
-        
-        # Labels
-        GET_REQUIREMENTS = "Get Requirements"
-        ACCESS_DENIED = "Access Denied"
-        ACCESS_GRANTED = "Access Granted"
-        HANDLE_WHITE_MOUNTAIN = "Handle White Mountain"
-        TEST_REQUIREMENTS = "Test Requirements"
 
         # DECORATIONS MODE PATCH
         pine.write_bytes(HOOK_ADDR_ENFORCE_AREA_ACCESS, mips([
@@ -1215,56 +1215,79 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             #   return a failure, but I think it would work fine if the two are in the same function?
             addiu(sp, sp, -0x4),
             sw(ra, 0, sp),
+
             lui(t0, get_upper_nibble(Addresses.ADDR_CURRENT_WORLD_CHUNK)),
             addiu(t0, t0, get_lower_nibble(Addresses.ADDR_CURRENT_WORLD_CHUNK)),
             lbu(t0, 0, t0),
+            
+            label(GET_REQUIREMENTS),
             lui(t1, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE)),
             ori(t1, t1, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_REQUIREMENTS_TABLE)),
             addu(t1, t1, t0),
             addu(t1, t1, t0),
             nop(),
             lbu(t1, 0, t1),
-            beq(t1, zero, 50),
-            nop(),
+
+            beq(t1, zero, ACCESS_GRANTED),
+
+            # ---- HANDLE WINDMILLS CHUNK ----
+            nop(), # TODO: remove?
             ori(t3, zero, 0xFF),
-            bne(t1, t3, 14),
+            bne(t1, t3, HANDLE_WHITE_MOUNTAIN),
             nop(),
+
             lui(t3, get_upper_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
             ori(t3, t3, get_lower_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
             lhu(t3, 2, t3),
             slti(t3, t3, 0x43B0),
             bne(t3, zero, 5),
             nop(),
+
             addiu(t0, zero, 0x2B),
-            beq(zero, zero, -18),
+            beq(zero, zero, GET_REQUIREMENTS),
             nop(),
+
             addiu(t0, zero, 0x25),
-            beq(zero, zero, -21),
+            beq(zero, zero, GET_REQUIREMENTS),
             nop(),
+
+            # ---- HANDLE WHITE MOUNTAIN TOWN CHUNK ----
+            label(HANDLE_WHITE_MOUNTAIN),
             ori(t3, zero, 0xFE),
-            bne(t1, t3, 14),
+            bne(t1, t3, TEST_REQUIREMENTS),
             nop(),
+
             lui(t3, get_upper_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
             ori(t3, t3, get_lower_nibble(Addresses.ADDR_POSITION_IN_CHUNK)),
             lhu(t3, 10, t3),
             slti(t3, t3, 0x4310),
             bne(t3, zero, 5),
             nop(),
+
             addiu(t0, zero, 0x25),
-            beq(zero, zero, -33),
+            beq(zero, zero, GET_REQUIREMENTS),
             nop(),
+
             addiu(t0, zero, 0x24),
-            beq(zero, zero, -36),
+            beq(zero, zero, GET_REQUIREMENTS),
             nop(),
+
+
+            label(TEST_REQUIREMENTS),
             lui(t3, get_upper_nibble(Addresses.ap_stamps_received.address)),
             ori(t3, t3, get_lower_nibble(Addresses.ap_stamps_received.address)),
+
             lbu(t3, 0, t3),
             addiu(t3, t3, 0x1),
             slt(v0, t1, t3), # Are the number of AP stamps received less than the number needed to access this region?
+            
             lui(t3, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
             ori(t3, t3, get_lower_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),
-            bne(v0, zero, 11),
+            
+            bne(v0, zero, ACCESS_GRANTED),
             nop(),
+
+            label(ACCESS_DENIED),
             addiu(a0, zero, 0x11),
             addiu(a1, zero, 0x7),
             lui(a2, get_upper_nibble(Addresses.ADDR_STRING_NO_ACCESS)),
@@ -1274,6 +1297,8 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             addiu(sp, sp, 0x4),
             j(0x203FC8),
             sb(v0, 0, t3),
+
+            label(ACCESS_GRANTED),
             lw(ra, 0, sp),
             addiu(v0, zero, 0x1),
             lui(t3, get_upper_nibble(Addresses.ADDR_CHUNK_ACCESS_BOOL)),

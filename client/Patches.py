@@ -49,50 +49,72 @@ HOOK_ADDR_HANDLE_MY_CITY_PARTS_SHOP_ON_CONTINUE = 0x2DAE00
 HOOK_ADDR_COST_PERCENTAGE_MODIFIER = 0x2DAF00
 
 # ---------------------------------------------------
-_patch_index = 0
-def patch_rta_no_slot_data(pine : Pine, verification_run : bool = False):
-    patches = [
-        # Disable the email system
-        # This is where we'll store our patches - but in particular, we need to clear
-        #   something of this size to store all of the shop strings.
-        disable_email_system,
+def closure__patch_rta_no_slot_data():
+    # Create a closure around the function that applies the patches that do not require slot data.
+    #
+    # This is needed entirely for the patch verification system. Every time the RTA client checks
+    #   the game's memory to see if anything AP-related has updated, it double-checks that the game is
+    #   still patched before sending anything off to the AP server. Since checking every patch on
+    #   every client loop would be expensive, we just check one patch per loop.
+    # To do this, we keep track of both 1. the index of the patch we're checking (loops back to the
+    #    beginning once it checks the last patch), and 2. a cache of the results of the patches, to
+    #    greatly speed up the checks.
+    # We can safely cache all of these patches since none of them rely on player settings (hence, why
+    #    none of them require slot data). This would not hold true for the post-connect patches.
+    patch_index = 0
+    cached_patches = {}
+    
+    def patch_rta_no_slot_data(pine : Pine, verification_run : bool = False):
+        patches = [
+            # Disable the email system
+            # This is where we'll store our patches - but in particular, we need to clear
+            #   something of this size to store all of the shop strings.
+            disable_email_system,
 
-        # AP save setup
-        hook_currency_input_to_init_ap_item_index,
+            # AP save setup
+            hook_currency_input_to_init_ap_item_index,
 
-        # Handling AP location checks
-        write_ap_location_func,
-        hook_shop_purchases,
-        hook_npc_rewards,
-        patch_npc_dialogue_triggers,
-        hook_overworld_item_funcs,
-        hook_license_upgrades,
+            # Handling AP location checks
+            write_ap_location_func,
+            hook_shop_purchases,
+            hook_npc_rewards,
+            patch_npc_dialogue_triggers,
+            hook_overworld_item_funcs,
+            hook_license_upgrades,
 
-        # For shop strings (this function does not require slot data)
-        change_shop_item_quantity_display_to_ap,
+            # For shop strings (this function does not require slot data)
+            change_shop_item_quantity_display_to_ap,
 
-        # Other patches
-        patch_npc_equips,
-        disable_vanilla_my_city_part_shop_handling,
-        hook_game_continue_to_reset_my_city_part_shop,
-        patch_tin_raceway_requirements,
-        disable_func_that_overwrites_ap_save_data,
-        # patch_bars_for_ap_hints(pine) # TODO
-        # fix_curling_bug(pine) # TODO
-    ]
+            # Other patches
+            patch_npc_equips,
+            disable_vanilla_my_city_part_shop_handling,
+            hook_game_continue_to_reset_my_city_part_shop,
+            patch_tin_raceway_requirements,
+            disable_func_that_overwrites_ap_save_data,
+            # patch_bars_for_ap_hints(pine) # TODO
+            # fix_curling_bug(pine) # TODO
+        ]
 
-    if verification_run:
-        # Run only one patch. Used for patch verification, so we're not verifying every function on every client loop.
-        global _patch_index
-        patches[_patch_index](pine)
-        _patch_index += 1
-        if _patch_index >= len(patches):
-            _patch_index = 0
-    else:
-        # Run all patches. Standard use case (i.e. patching the game).
-        for patch in patches:
-            patch(pine)
+        if verification_run:
+            # Run only one patch. Used for patch verification, so we're not verifying every function on every client loop.
+            nonlocal patch_index, cached_patches
+            if cached_patches.get(patch_index) == None:
+                patches[patch_index](pine)
+                cached_patches[patch_index] = pine
+            else:
+                pine.__dict__.update(cached_patches[patch_index].__dict__)
+            
+            patch_index += 1
+            if patch_index >= len(patches):
+                patch_index = 0
+        else:
+            # Run all patches. Standard use case (i.e. patching the game).
+            for patch in patches:
+                patch(pine)
+    
+    return patch_rta_no_slot_data
 
+patch_rta_no_slot_data = closure__patch_rta_no_slot_data()
 
 def patch_rta_post_connect(pine : Pine, shop_strings : list, area_unlock_mode : int, parts_cost_modifier : int):
     # Handle shop strings

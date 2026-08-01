@@ -44,10 +44,10 @@ from BaseClasses import Region, Location, Item, Tutorial, LocationProgressType, 
 from Utils import visualize_regions
 
 # Local imports
-from .names import ItemName
+from .names import ItemName, LocationName
 from .options import RoadTripOptions, get_RTA_options, AreaUnlockMode, FILLER_AMOUNT
-from .items import item_table, create_items_RTA, create_item_RTA
-from .locations import location_table, create_locations_RTA, get_double_up_stamp_name, get_double_up_stamp_id
+from . import items
+from . import locations
 from .regions import create_regions_RTA
 from .roomRando import room_rando_RTA
 from .categories import double_up_stamps
@@ -109,9 +109,13 @@ class RoadTripWorld(World):
     settings: ClassVar[RoadTripSettings]
     topology_present = False
     web = RoadTripWeb()
-    item_name_to_id = {name: data.id for name, data in item_table.items()} # Required by Archipelago
-    location_name_to_id = {name: data.id for name, data in location_table.items()} # Required by Archipelago
-    
+    item_name_to_id = {  # Required by Archipelago
+        name: data.id for name, data in items.item_table.items()
+    }
+    location_name_to_id = {  # Required by Archipelago
+        name: data.id for name, data in locations.location_table.items()
+    }
+
     # AP expects location_name_to_id to always contain all possible locations in the world.
     # So even if the player does not enable Remove Double-Up Stamps, we need to add the double-up stamps to the dictionary.
     #
@@ -119,14 +123,123 @@ class RoadTripWorld(World):
     #   was causing the locations to display in the client and on the server as "Unknown Location" - even
     #   though they were properly assigned to their IDs, and successfully sending from the game.
     for npc_reward_name, stamp_name in double_up_stamps.items():
-        new_location_name = get_double_up_stamp_name(npc_reward_name, stamp_name)
-        new_ID = get_double_up_stamp_id(npc_reward_name)
+        new_location_name = locations.get_double_up_stamp_name(
+            npc_reward_name, stamp_name
+        )
+        new_ID = locations.get_double_up_stamp_id(npc_reward_name)
 
         location_name_to_id[new_location_name] = new_ID
 
-    # Useful attributes provided by base World class, but not currently utilized by RTA AP:
-    # item_name_groups = {}
-    # location_name_groups = {}
+    item_name_groups = {
+        "Parts": (
+            set().union(
+                items.tires,
+                items.engines,
+                items.chassis,
+                items.transmission,
+                items.steering,
+                items.brakes,
+                items.wheels,
+                items.lights,
+                items.wing_set,
+                items.special_parts,
+                items.options,
+                items.sticker,
+                items.horns,
+                items.meters,
+            )
+        ),
+        "Bodies": set(items.bodies),
+        "Tires": set(items.tires),
+        "Engines": set(items.engines),
+        "Chassis": set(items.chassis),
+        "Transmissions": set(items.transmission),
+        "Steering": set(items.steering),
+        "Brakes": set(items.brakes),
+        "Wheels": set(items.wheels),
+        "Lights": set(items.lights),
+        "Wing Sets": set(items.wing_set),
+        "Special Parts": set(items.special_parts),
+        "Options": set(items.options),
+        "Horns": set(items.horns),
+        "Meters": set(items.meters),
+        "Garage Items": set().union(items.garage_wallpapers, items.garage_decorations),
+        "Garage Wallpapers": set(items.garage_wallpapers),
+        "Garage Decorations": set(items.garage_decorations),
+        "Area Unlocks": set(items.area_unlocks),
+        "Collectibles": set(items.collectibles),
+        "Progressive Parts": (
+            set().union(
+                items.progressive_parts,
+                items.progressive_parts_set_2,
+                items.progressive_parts_set_3,
+            )
+        ),
+        "Progressive Parts - Set 1": set(items.progressive_parts),
+        "Progressive Parts - Set 2": set(items.progressive_parts_set_2),
+        "Progressive Parts - Set 3": set(items.progressive_parts_set_3),
+    }
+    location_name_groups = {
+        "Races": (
+            set().union(
+                locations.races_c_rank,
+                locations.races_b_rank,
+                locations.races_a_rank,
+                locations.races_other,
+            )
+        ),
+        "Races - Rank C": set(locations.races_c_rank),
+        "Races - Rank B": set(locations.races_b_rank),
+        "Races - Rank A": set(locations.races_a_rank),
+        "Races - Other": set(locations.races_other),
+        "Stamps": set(locations.stamps),
+        "Items Received": set(locations.items_received),
+        "Billboards": {
+            LocationName.Billboard_Coffee_Shop,
+            LocationName.Billboard_Noodle_Shop,
+            LocationName.Billboard_Cake_Shop,
+            LocationName.Billboard_Wool_Shop,
+            LocationName.Billboard_Coconut_Shop,
+        },
+        "Coine Rewards": {
+            LocationName.Coine_Reward_1,
+            LocationName.Coine_Reward_2,
+            LocationName.Coine_Reward_3,
+            LocationName.Coine_Reward_4,
+            LocationName.Coine_Reward_5,
+            LocationName.Coine_Reward_6,
+            LocationName.Coine_Reward_7,
+            LocationName.Coine_Reward_8,
+            LocationName.Coine_Reward_9,
+            LocationName.Coine_Reward_10,
+        },
+        "Trade Quest": {
+            LocationName.Trade_Quest_1,
+            LocationName.Trade_Quest_2,
+            LocationName.Trade_Quest_3,
+            LocationName.Trade_Quest_4,
+            LocationName.Trade_Quest_5,
+            LocationName.Trade_Quest_6,
+            LocationName.Trade_Quest_7,
+        },
+        "Duck Quiz": {
+            LocationName.Duck_Quiz_1,
+            LocationName.Duck_Quiz_2,
+            LocationName.Duck_Quiz_3,
+        },
+        "Overworld Items": set(locations.overworld_items),
+        "Gemstones": {
+            LocationName.Blue_Sapphire,
+            LocationName.Emerald,
+            LocationName.Ruby,
+            LocationName.Topaz,
+            LocationName.Black_Opal,
+            LocationName.Moonstone,
+            LocationName.Amethyst,
+        },
+        "Shop Purchases": set(locations.shop_purchases),
+        "Licenses": set(locations.licenses),
+    }
 
     # AP no longer needs each world to provide its own unique base ID
     # base_id = 74797278
@@ -140,7 +253,7 @@ class RoadTripWorld(World):
 
     # Required override by Archipelago
     def create_item(self, name):
-        return create_item_RTA(self, name)
+        return items.create_item_RTA(self, name)
 
     # -------- Methods called by AP's Main.py ----------
     def generate_early(self):
@@ -148,11 +261,12 @@ class RoadTripWorld(World):
 
     def create_regions(self):
         create_regions_RTA(self) # Also creates most rules, see note under set_rules
-        create_locations_RTA(self) # Also creates and connects default entrances
+        # Also creates and connects default entrances
+        locations.create_locations_RTA(self)
 
     def create_items(self):
-        create_items_RTA(self)
-    
+        items.create_items_RTA(self)
+
     def set_rules(self):
         # Other than setting the victory condition, and setting good item priority for races and
         #    minigames (if those options are set), all other rules are set in createRegionsRTA  

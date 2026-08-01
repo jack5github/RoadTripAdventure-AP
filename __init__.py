@@ -50,7 +50,7 @@ from . import items
 from . import locations
 from .regions import create_regions_RTA
 from .roomRando import room_rando_RTA
-from .categories import double_up_stamps
+from .categories import double_up_stamps, get_combined_double_up_stamp_name
 
 # -------- Taken from APRaC2, needed for client ------------
 def run_client():
@@ -192,8 +192,22 @@ class RoadTripWorld(World):
         "Races - Rank B": set(locations.races_b_rank),
         "Races - Rank A": set(locations.races_a_rank),
         "Races - Other": set(locations.races_other),
-        "Stamps": set(locations.stamps),
-        "Items Received": set(locations.items_received),
+        "Stamps": (
+            set().union(
+                locations.stamps,
+                {get_combined_double_up_stamp_name(k) for k in double_up_stamps},
+            )
+        ),
+        "Items Received": (
+            set().union(
+                locations.items_received,
+                {
+                    get_combined_double_up_stamp_name(k)
+                    for k in double_up_stamps
+                    if k in locations.items_received
+                },
+            )
+        ),
         "Billboards": {
             LocationName.Billboard_Coffee_Shop,
             LocationName.Billboard_Noodle_Shop,
@@ -212,6 +226,7 @@ class RoadTripWorld(World):
             LocationName.Coine_Reward_8,
             LocationName.Coine_Reward_9,
             LocationName.Coine_Reward_10,
+            get_combined_double_up_stamp_name(LocationName.Coine_Reward_10),
         },
         "Trade Quest": {
             LocationName.Trade_Quest_1,
@@ -226,6 +241,7 @@ class RoadTripWorld(World):
             LocationName.Duck_Quiz_1,
             LocationName.Duck_Quiz_2,
             LocationName.Duck_Quiz_3,
+            get_combined_double_up_stamp_name(LocationName.Duck_Quiz_3),
         },
         "Overworld Items": set(locations.overworld_items),
         "Gemstones": {

@@ -116,15 +116,15 @@ def closure__patch_rta_no_slot_data():
 
 patch_rta_no_slot_data = closure__patch_rta_no_slot_data()
 
-def patch_rta_post_connect(pine : Pine, shop_strings : list, area_unlock_mode : int, parts_cost_modifier : int):
+def patch_rta_post_connect(pine : Pine, shop_strings : list, area_unlock_mode : int, parts_cost_modifier : int, parts_cost_maximum : int):
     # Handle shop strings
     hook_shops_to_display_ap_item_strings(pine, shop_strings)
 
     # Handle enforcing area access
     enforce_area_access(pine, area_unlock_mode)
 
-    # Apply a percentage modifier for the cost of parts
-    cost_percentage_modifier(pine, parts_cost_modifier)
+    # Apply a percent modifier and/or maximum to the cost of parts
+    part_cost_modifiers(pine, parts_cost_modifier, parts_cost_maximum)
 
 # ---------------------------------------------------
 
@@ -1505,16 +1505,27 @@ def enforce_area_access(pine : Pine, area_unlock_mode : int):
             jal(HOOK_ADDR_AREA_ACCESS_OVERWORLD_ITEMS) # Jump-and-link to hook
         ]))
 
-def cost_percentage_modifier(pine : Pine, cost_percent_int : int):
+def part_cost_modifiers(pine : Pine, cost_percent_int : int, cost_max_int : int):
     '''
     Inject a hook into the 'get part cost' function that modifies the returned cost by a 
     provided percentage.
     '''
     # Convert cost_percent_int to two bytes, store in pre-determined location
     # Assumes that int will not be over 100 or below 0
-    addr = 0x2DAE90
+    addr = Addresses.ADDR_AP_PART_COST_MODIFIER
     modifier = list(cost_percent_int.to_bytes(2))
     modifier.reverse()
+    modifier = bytes(modifier)
+    pine.write_bytes(addr, modifier)
+
+    # Convert cost_max_int to four bytes, store in pre-determined location
+    # Assumes that int will not be greater than max 16-bit int
+    # If -1, set to max 16-bit int (0xFFFFFFFF)
+    addr = Addresses.ADDR_AP_PART_COST_MAXIMUM
+    modifier = [0xFF, 0xFF, 0xFF, 0xFF] # default, no maximum
+    if cost_max_int >= 0:
+        modifier = list(cost_max_int.to_bytes(4))
+        modifier.reverse()
     modifier = bytes(modifier)
     pine.write_bytes(addr, modifier)
 
@@ -1552,6 +1563,10 @@ def cost_percentage_modifier(pine : Pine, cost_percent_int : int):
             j(HOOK_ADDR_COST_PERCENTAGE_MODIFIER)
         ]))
 
+    # ASM labels for below hook
+    HANDLE_MAX_COST = "Handle Max Cost"
+    END = "End"
+
     # Hook
     pine.write_bytes(HOOK_ADDR_COST_PERCENTAGE_MODIFIER, mips([
         # t0 -- Cost modifier percentage (as int, stored in a halfword (two bytes))
@@ -1566,17 +1581,17 @@ def cost_percentage_modifier(pine : Pine, cost_percent_int : int):
         # Set t1 to 100
         addiu(t1, zero, 0x64),
 
-        # If percentage is 100, do nothing, use v0 as-is, return
+        # If percentage is 100, do nothing - use v0 as-is, move on to the max cost modifier
         bne(t0, t1, 4),
         nop(),
-        jr(ra),
+        beq(zero, zero, HANDLE_MAX_COST),
         nop(),
 
-        # If percentage is 0, set cost to 0 and return
+        # If percentage is 0, set cost to 0 and return (no need to handle max cost, cost will always be 0)
         bne(t0, zero, 5),
         nop(),
         addiu(v0, zero, 0),
-        jr(ra),
+        beq(zero, zero, END),
         nop(),
 
         # Initialize quotient
@@ -1601,6 +1616,21 @@ def cost_percentage_modifier(pine : Pine, cost_percent_int : int):
         beq(zero, zero, -3), # Return to the top of the loop
         addu(v0, v0, t1), # ...after adding division quotient to cost
 
+        label(HANDLE_MAX_COST),
+        # Load maximum cost into t0
+        lui(t0, get_upper_nibble(Addresses.ADDR_AP_PART_COST_MAXIMUM)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_AP_PART_COST_MAXIMUM)),
+        lw(t0, 0, t0),
+        nop(),
+
+        # If the maximum part cost is less than the cost of the part at this point (i.e. after the multiplier has been applied), set the part cost to the max
+        sltu(t3, t0, v0), # Must be sltu, not slt, since 0xFFFFFFFF would be considered negative if signed
+        beq(t3, zero, END),
+        nop(),
+        addu(v0, zero, t0),
+
+        # Return v0
+        label(END),
         jr(ra),
         nop()
     ]))

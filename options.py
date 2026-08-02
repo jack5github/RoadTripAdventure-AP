@@ -97,6 +97,18 @@ class PartsCostModifier(Range):
     range_start = 0
     range_end = 100
 
+class PartsCostMaximum(Range):
+    """Set the maximum cost for a part. Value will be rounded up if not divisible by 100 (e.g. 2130 would become 2200).
+    This maximum is applied *after* the percentage modifier above.
+    
+    If set to -1 (default), no maximum will be applied.
+    If set to 0, all parts will be free.
+    """
+    display_name = "Parts Cost Maximum"
+    default = -1
+    range_start = -1
+    range_end = 100000 # Most expensive part in vanilla (Devil Engine)
+
 @dataclass
 class RoadTripOptions(PerGameCommonOptions):
     area_unlock_mode:                         AreaUnlockMode
@@ -106,6 +118,7 @@ class RoadTripOptions(PerGameCommonOptions):
     prioritize_good_rewards_for_minigames:    PrioritizeGoodRewardsForMinigames
     license_handling:                         LicenseHandling
     parts_cost_modifier:                      PartsCostModifier
+    parts_cost_maximum:                       PartsCostMaximum
 
 def get_RTA_options(multiworld: MultiWorld, player : int) -> RoadTripOptions:
     options = multiworld.worlds[player].options

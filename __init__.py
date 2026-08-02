@@ -189,7 +189,8 @@ class RoadTripWorld(World):
             "shop_strings": get_shop_strings(self),
             "area_unlock_mode": int(self.options.area_unlock_mode),
             "remove_double_up_stamps": bool(self.options.remove_double_up_stamps),
-            "parts_cost_modifier": int(self.options.parts_cost_modifier)
+            "parts_cost_modifier": int(self.options.parts_cost_modifier),
+            "parts_cost_maximum": int(self.options.parts_cost_maximum)
         }
         return slot_data
     

@@ -97,7 +97,10 @@ ADDR_PART_SELECTION_MENU_STYLE = 0x1757B88
 ADDR_POSITION_IN_CHUNK = 0x177ACE0
 
 # Stores the percent modifier for part costs (defaults to 100)
-ADDR_AP_PART_COST_MODIFIER = 0x2DAE90
+ADDR_AP_PART_COST_MODIFIER = 0x2DAE90 # 2 bytes
+
+# Stores the maximum cost for parts (defaults to max 4-byte int, 0xFFFFFFFF)
+ADDR_AP_PART_COST_MAXIMUM = 0x2DAE92 # 4 bytes
 
 
 class StorageType(StrEnum):

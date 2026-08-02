@@ -78,6 +78,7 @@ class RTAContext(CommonContext):
     area_unlock_mode = None
     remove_double_up_stamps = None
     parts_cost_modifier = 100
+    parts_cost_maximum = -1
     reset_post_connect_patches = False
     quick_patch_check_failed = False
 
@@ -121,6 +122,7 @@ class RTAContext(CommonContext):
             self.area_unlock_mode = args['slot_data']['area_unlock_mode']
             self.remove_double_up_stamps = args['slot_data']['remove_double_up_stamps']
             self.parts_cost_modifier = args['slot_data']['parts_cost_modifier']
+            self.parts_cost_maximum = args['slot_data']['parts_cost_maximum']
 
             self.reset_post_connect_patches = True
 
@@ -700,7 +702,7 @@ async def handle_rta(ctx: RTAContext):
             patch_rta_no_slot_data(ctx.pine)
             logger.info("Road Trip AP memory patch successful! Load an AP save or start a new game to continue.")
         if ctx.reset_post_connect_patches:
-            patch_rta_post_connect(ctx.pine, ctx.shop_strings, ctx.area_unlock_mode, ctx.parts_cost_modifier)
+            patch_rta_post_connect(ctx.pine, ctx.shop_strings, ctx.area_unlock_mode, ctx.parts_cost_modifier, ctx.parts_cost_maximum)
             logger.info("Patches requiring slot data successful!")
             ctx.reset_post_connect_patches = False
 

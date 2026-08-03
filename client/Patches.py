@@ -91,8 +91,8 @@ def closure__patch_rta_no_slot_data():
             hook_game_continue_to_reset_my_city_part_shop,
             patch_tin_raceway_requirements,
             disable_func_that_overwrites_ap_save_data,
-            # patch_bars_for_ap_hints(pine) # TODO
-            # fix_curling_bug(pine) # TODO
+            # patch_bars_for_ap_hints # TODO
+            fix_vanilla_bugs
         ]
 
         if verification_run:
@@ -1634,3 +1634,18 @@ def part_cost_modifiers(pine : Pine, cost_percent_int : int, cost_max_int : int)
         jr(ra),
         nop()
     ]))
+
+def fix_vanilla_bugs(pine : Pine):
+    """Patch various bugs present in the vanilla game"""
+    # In vanilla RTA, if the player clears Tunnel Race on their first attempt, they will only
+    #   be rewarded Body Q085, and not the Space Meter.
+    # In the vanilla game, the Space Meter could still be purchased in the My City parts shop
+    #   afterward, but this makes the check permanently missable in AP.
+    # Change the text pointers so that winning on any attempt (first try or not) will provide
+    #   both item rewards, and both stamps. (Rewarding both stamps on a later attempt is fine,
+    #   since the game seems to properly handle an attempt to reward a stamp that's already been
+    #   rewarded).
+    pine.write_bytes(0x2A7AC0, bytes([0xd8, 0x39, 0x32]))
+    pine.write_bytes(0x2A7AD8, bytes([0x20, 0x3a, 0x32]))
+
+    # TODO: Patch curling bug

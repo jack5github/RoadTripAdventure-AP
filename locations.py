@@ -609,7 +609,7 @@ stamps : dict[str, LocationData] = {
     ),
     LocationName.Stamp_66: LocationData(BASE_IDS.STAMPS + 65, RegionName.White_Mountain_Ski_Jumping, 
         access_rule = lambda state, player:
-            state.has(ItemName.Jet_Turbine, player)    
+            state.has(ItemName.Jet_Turbine, player)
     ),
     LocationName.Stamp_67: LocationData(BASE_IDS.STAMPS + 66, RegionName.White_Mountain_Santa_House),
     LocationName.Stamp_68: LocationData(BASE_IDS.STAMPS + 67, RegionName.White_Mountain_Keitel_House,
@@ -640,7 +640,7 @@ stamps : dict[str, LocationData] = {
     LocationName.Stamp_76: LocationData(BASE_IDS.STAMPS + 75, RegionName.Papaya_Island_Obstacle_Course, 
         access_rule = lambda state, player:
             has_tires_of_level(1, state, player) and
-            state.has(ItemName.Jet_Turbine, player)    
+            state.has(ItemName.Jet_Turbine, player)
     ),
     LocationName.Stamp_77: LocationData(BASE_IDS.STAMPS + 76, RegionName.Papaya_Island_Papu_Tree),
     LocationName.Stamp_78: LocationData(BASE_IDS.STAMPS + 77, RegionName.Papaya_Island_Beach_Flag,
@@ -969,7 +969,10 @@ overworld_items : dict[str, LocationData] = {
     LocationName.Emerald: LocationData(BASE_IDS.ITEMS + 288, RegionName.Base.White_Mountain),
     LocationName.Ruby: LocationData(BASE_IDS.ITEMS + 289, RegionName.Base.Sandpolis),
     LocationName.Topaz: LocationData(BASE_IDS.ITEMS + 290, RegionName.Base.Fuji_City),
-    LocationName.Black_Opal: LocationData(BASE_IDS.ITEMS + 291, RegionName.Base.Papaya_Island),
+    LocationName.Black_Opal: LocationData(BASE_IDS.ITEMS + 291, RegionName.Base.Papaya_Island_Upper,
+        access_rule = lambda state, player:
+            state.has(ItemName.Jet_Turbine, player)
+    ),
     LocationName.Moonstone: LocationData(BASE_IDS.ITEMS + 292, RegionName.Base.Mushroom_Road, 
         access_rule = lambda state, player:
             state.has(ItemName.Water_Ski, player) and

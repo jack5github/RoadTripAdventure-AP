@@ -53,6 +53,28 @@ WRONG_SAVE_ID_MSG = "The currently loaded save is an AP save, but it is either f
 DEBUG_ALLOW_SAVE_MISMATCH = False
 
 class RTACommandProcessor(ClientCommandProcessor):
+    def _cmd_progressive_parts_progress(self) -> bool:
+        """Returns the number of each progressive part received."""
+        if self.ctx.save_id == None:
+            self.output("Must connect to the server before running this command!")
+        else:
+            counts = dict()
+            for item in self.ctx.items_received:
+                item_name = self.ctx.item_names.lookup_in_game(item.item)
+                if "Progressive" in item_name and item_name != ItemName.Progressive_License:
+                    count = counts.get(item_name, 0)
+                    counts[item_name] = count + 1
+            
+            if len(counts.keys()) > 0:
+                temp = list(counts.items()).copy()
+                temp.sort()
+                for item, count in temp:
+                    self.output(f"{item}: {count}")
+            else:
+                self.output("No progressive parts received yet.")
+        
+        return True
+    
     def _cmd_world_version(self) -> bool:
         """Returns both the version of RTA AP installed, and the version of RTA AP used when generating the multiworld."""
         from .. import RoadTripWorld

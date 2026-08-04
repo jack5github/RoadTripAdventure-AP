@@ -53,7 +53,20 @@ WRONG_SAVE_ID_MSG = "The currently loaded save is an AP save, but it is either f
 DEBUG_ALLOW_SAVE_MISMATCH = False
 
 class RTACommandProcessor(ClientCommandProcessor):
-    pass # Not adding any new commands beyond those provided by CommonClient for now
+    def _cmd_world_version(self) -> bool:
+        """Returns both the version of RTA AP installed, and the version of RTA AP used when generating the multiworld."""
+        from .. import RoadTripWorld
+        if self.ctx.save_id == None: # Only None if not yet connected to the server
+            self.output(f"Local world version: {RoadTripWorld.world_version.as_simple_string()}")
+            self.output("Connect to the server to get the world version used when generating the multiworld.")
+        elif self.ctx.gen_world_version == None:
+            self.output(f"Local world version: {RoadTripWorld.world_version.as_simple_string()}")
+            self.output("No world version in slot data. Either v0.1.0 was used in generation, or something has gone wrong.")
+        else:
+            self.output(f"Local world version: {RoadTripWorld.world_version.as_simple_string()}")
+            self.output(f"World version used in generation: {self.ctx.gen_world_version}")
+        
+        return True
 
 # CommonContext is how we interact with AP's CommonClient (which is what we're using for the Road Trip client).
 #   In our sub-class, we define a few overrides of default functions in CommonContext, include a few pieces
@@ -72,6 +85,7 @@ class RTAContext(CommonContext):
     items_handling = 0b111
 
     # From the slot_data dictionary passed from the AP world to the server, and then to the client on connection:
+    gen_world_version : str | None = None
     filler_amount = 500 # Default, should be overridden once slot_data received
     save_id = None
     shop_strings = [] # List of PartDescriptions
@@ -116,6 +130,7 @@ class RTAContext(CommonContext):
         if cmd == "Connected":
             print("Connected")
 
+            self.gen_world_version = args['slot_data']['gen_world_version']
             self.filler_amount = args['slot_data']['filler_amount']
             self.save_id = args['slot_data']['save_id']
             self.shop_strings = args['slot_data']['shop_strings']

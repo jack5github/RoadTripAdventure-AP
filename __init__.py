@@ -12,7 +12,7 @@ This file (__init__.py) is the first thing imported. When imported, it will make
 all of its classes, functions, etc.
 
 Later, after finding all valid .apworld files (and core worlds in the "worlds" directory) that
-match the player-provided YAML settings files, AP will create an instance of each of those world's  
+match the player-provided YAML settings files, AP will create an instance of each of those world's
 World class (for Road Trip, this is RoadTripWorld), and attempt to call a series of methods from all of them.
 
 For example, one of the first methods called is "generate_early". All world instances will have their 
@@ -184,6 +184,7 @@ class RoadTripWorld(World):
     def fill_slot_data(self):
         # slot_data contains the data we pass to the client (that is not already accessible through server API calls)
         slot_data = {
+            "gen_world_version": self.world_version.as_simple_string(),
             "filler_amount": FILLER_AMOUNT,
             "save_id": self.random.getrandbits(32),
             "shop_strings": get_shop_strings(self),

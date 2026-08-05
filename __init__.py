@@ -257,18 +257,30 @@ class PartDescription(dict):
     item_classification: ItemClassification
 
 def get_shop_strings(world : World) -> list[PartDescription]:
-    from .locations import BASE_IDS
+    from .locations import BASE_IDS, shop_purchases
 
     shop_strings = []
 
-    for location in world.get_locations():
-        if "Shop Purchase" in location.name:
-            part_desc = PartDescription(
-                vanilla_item_id = location.address - BASE_IDS.SHOP_PURCHASES, # Address is an AP location's ID
-                item_name = location.item.name[:40], # Prevent going over max item name length that our shop strings data structure can hold
-                player = world.multiworld.get_player_name(location.item.player),
-                item_classification = location.item.classification
-            )
-            shop_strings.append(part_desc)
+    for loc_name, loc_data in shop_purchases.items():
+        vanilla_item_id = loc_data.id - BASE_IDS.SHOP_PURCHASES
+        try:
+            location = world.get_location(loc_name) # Will fail if the Location for this shop purchase is not in the location pool
+            
+            item_name = location.item.name[:40] # Prevent going over max item name length that our shop strings data structure can hold
+            player = world.multiworld.get_player_name(location.item.player)
+            item_classification = location.item.classification
+        except KeyError:
+            # Shop purchase location not in world, set default values
+            item_name = "No Item"
+            player = ""
+            item_classification = 0xFF # set to something that will never be used by ItemClassification
+
+        part_desc = PartDescription(
+            vanilla_item_id = vanilla_item_id,
+            item_name = item_name,
+            player = player,
+            item_classification = item_classification
+        )
+        shop_strings.append(part_desc)
 
     return shop_strings

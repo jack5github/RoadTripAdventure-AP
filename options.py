@@ -98,7 +98,8 @@ class PartsCostModifier(Range):
     range_end = 100
 
 class PartsCostMaximum(Range):
-    """Set the maximum cost for a part. Value will be rounded up if not divisible by 100 (e.g. 2130 would become 2200).
+    """Set the maximum cost for a part. 
+    
     This maximum is applied *after* the percentage modifier above.
     
     If set to -1 (default), no maximum will be applied.

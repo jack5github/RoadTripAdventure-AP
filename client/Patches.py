@@ -1,6 +1,7 @@
 from .pine import Pine
 from ..ram_data import Addresses
 from .MIPS import *
+from .Helpers import int_to_bytes
 
 NOP_BYTES = bytes([0,0,0,0])
 
@@ -47,6 +48,7 @@ HOOK_ADDR_HANDLE_MY_CITY_PARTS_SHOP_ON_CONTINUE = 0x2DAE00
 # NOTE: 0x2DAE80 through 0x2DAEFF also reserved for custom strings
 
 HOOK_ADDR_COST_PERCENTAGE_MODIFIER = 0x2DAF00
+HOOK_ADDR_PREVENT_AP_ITEM_REPURCHASE = 0x2DB000
 
 # ---------------------------------------------------
 def closure__patch_rta_no_slot_data():
@@ -125,6 +127,9 @@ def patch_rta_post_connect(pine : Pine, shop_strings : list, area_unlock_mode : 
 
     # Apply a percent modifier and/or maximum to the cost of parts
     part_cost_modifiers(pine, parts_cost_modifier, parts_cost_maximum)
+
+    # In Decorations mode, modify the descriptions of items used as keys to note which town they unlock.
+    modify_key_descriptions(pine, area_unlock_mode)
 
 # ---------------------------------------------------
 
@@ -245,6 +250,10 @@ def write_ap_location_func(pine : Pine):
     table_length_table = bytes([0x97, 0x0D, 0x0C, 0x05, 0x06, 0x04, 0x04, 0x0F, 0x03, 0x02, 0x03, 0x09, 0x02, 0x0F, 0x0B, 0x30])
     pine.write_bytes(Addresses.ADDR_TABLE_LENGTH_TABLE, table_length_table) # Just prior to all ASM patches
 
+    # ASM Labels
+    END = "End"
+    SHOP_PURCHASE = "Shop Purchase"
+
     pine.write_bytes(HOOK_ADDR_AP_LOCATION_FUNC_READ, mips([
         # To read a bit, start here. Set t7 to 1 (checked later).
         addiu(t7, zero, 1),
@@ -259,7 +268,7 @@ def write_ap_location_func(pine : Pine):
         # Main function body
         # First, if a2 is not 0, exit the function.
         # a2 appears to always be 0 when the player is receiving a part.
-        bne(a2,zero,0x2D),
+        bne(a2,zero,END),
         nop(),
 
         # Copy the arguments to temporary registers, instead of mutating directly (they could 
@@ -280,18 +289,25 @@ def write_ap_location_func(pine : Pine):
         addiu(t0, t0, -1),
         beq(zero, zero, -5),
 
-        # Determine whether we are currently in a shop by testing for either shop task
-        #   address in ra.
-        # One will be in ra during a buy, the other will be in ra while browsing.
-        # If we are in the shop, set the address to check to the the AP shop purchases 
+        # Determine whether we are currently in a shop by testing for several possible shop
+        #   task addresses in ra.
+        # The first will be in ra during a buy, the second will be in ra while browsing,
+        #   and the third will be in ra when verifying that the player does not already
+        #   own the maximum number of a part when attempting to buy.
+        #   (TODO: this is fragile, really should pass in a variable if possible...)
+        # If we are in the shop, set the address to check to the AP shop purchases
         #   bitfield. Otherwise, set it to the AP NPC items received bitfield.
         lui(t3, 0x0026),
         ori(t3, t3, 0x97E0),
-        beq(ra, t3, 10),
+        beq(ra, t3, SHOP_PURCHASE),
         nop(),
         lui(t3, 0x0024),
         ori(t3, t3, 0x7244),
-        beq(ra, t3, 6),
+        beq(ra, t3, SHOP_PURCHASE),
+        nop(),
+        lui(t3, 0x26),
+        ori(t3, t3, 0x9704),
+        beq(ra, t3, SHOP_PURCHASE),
         nop(),
 
         # Set table to NPC reward table
@@ -301,6 +317,7 @@ def write_ap_location_func(pine : Pine):
         nop(),
 
         # Set table to shop purchases table
+        label(SHOP_PURCHASE),
         lui(t1, get_upper_nibble(Addresses.shop_purchases.address)),
         addiu(t1, t1, get_lower_nibble(Addresses.shop_purchases.address)),
 
@@ -335,6 +352,7 @@ def write_ap_location_func(pine : Pine):
         and_(t0, t0, t2),
         slti(v0, t0, 1),
         xori(v0, v0, 1),
+        label(END),
         jr(ra),
         nop()
     ]))
@@ -367,6 +385,30 @@ def hook_shop_purchases(pine : Pine):
         j(HOOK_ADDR_AP_LOCATION_FUNC_WRITE),
         nop()
     ]))
+
+    # Prevent repurchases of AP parts
+    pine.write_bytes(0x2696FC, mips([
+        jal(HOOK_ADDR_PREVENT_AP_ITEM_REPURCHASE)
+    ]))
+    pine.write_bytes(HOOK_ADDR_PREVENT_AP_ITEM_REPURCHASE, mips([
+        # Run the vanilla 'cannot buy' function if we are in the My City Part Shop
+        # TODO: Determining whether we're here should probably be a function, this is done several times throughout the patches
+        lui(t0, get_upper_nibble(Addresses.ADDR_CURRENT_ROOM_INDEX)),
+        ori(t0, t0, get_lower_nibble(Addresses.ADDR_CURRENT_ROOM_INDEX)),
+        lbu(t1, 0, t0),
+        addiu(t2, zero, 1),
+        bne(t1, t2, 7),
+        lbu(t1, 2, t0), # get room table value, 2 bytes away from room index
+        addiu(t2, zero, 9),
+        bne(t1, t2, 4),
+        nop(),
+        j(0x23D548),
+        nop(),
+        j(HOOK_ADDR_AP_LOCATION_FUNC_READ),
+        nop()
+    ]))
+    # 'Already bought AP part!' string
+    pine.write_bytes(0x32F308, bytes([0x41, 0x6C, 0x72, 0x65, 0x61, 0x64, 0x79, 0x20, 0x62, 0x6F, 0x75, 0x67, 0x68, 0x74, 0x20, 0x41, 0x50, 0x20, 0x70, 0x61, 0x72, 0x74, 0x21, 0x00]))
 
 
 def hook_npc_rewards(pine : Pine):
@@ -1634,6 +1676,97 @@ def part_cost_modifiers(pine : Pine, cost_percent_int : int, cost_max_int : int)
         jr(ra),
         nop()
     ]))
+
+def modify_key_descriptions(pine : Pine, area_unlock_mode : int):
+    """
+    If in Decorations mode, modify the in-game descriptions of items that are used as area unlock keys
+    so that they note which town they unlock.
+    """
+    if area_unlock_mode != 0: # i.e. not Decorations mode
+        return
+    
+    # "Area unlock key for\n" string
+    new_description_part_1 = bytes([0x41, 0x72, 0x65, 0x61, 0x20, 0x75, 0x6E, 0x6C, 0x6F, 0x63, 0x6B, 0x20, 0x6B, 0x65, 0x79, 0x20, 0x66, 0x6F, 0x72, 0x0A])
+    key_descriptions = {
+        'peach_town': {
+            'pointer_addresses': [0x2F0864, 0x2F086C],
+            #'addresses': [0x2F0F98, 0x2F0F68], # Local Peach Wine, Peach Doll
+            'new_address': 0x2F0F98,
+            'new_description': bytes([
+                # "Peach Town" + 0x00
+                0x50, 0x65, 0x61, 0x63, 0x68, 0x20, 0x54, 0x6F, 0x77, 0x6E, 0x00
+            ])
+        },
+        'fuji_city': {
+            'pointer_addresses': [0x2F0874, 0x2F087C],
+            #'addresses': [0x2F0F38, 0x2F0EF8], # Gold Ornament, Policeman's Club
+            'new_address': 0x2F0F38,
+            'new_description': bytes([
+                # 'Fuji City" + 0x00
+                0x46, 0x75, 0x6A, 0x69, 0x20, 0x43, 0x69, 0x74, 0x79, 0x00
+            ])
+        },
+        'sandpolis': {
+            'pointer_addresses': [0x2F0884, 0x2F088C],
+            #'addresses': [0x2F0EB8, 0x2F0EA8], # Mini-Tower, Toy Gun
+            'new_address': 0x2F0EB8,
+            'new_description': bytes([
+                # "Sandpolis" + 0x00
+                0x53, 0x61, 0x6E, 0x64, 0x70, 0x6F, 0x6C, 0x69, 0x73, 0x00
+            ])
+        },
+        'chestnut_canyon': {
+            'pointer_addresses': [0x2F0894, 0x2F089C],
+            #'addresses': [0x2F0E68, 0x2F0E30], # M. Carton's Painting, Model Train
+            'new_address': 0x2F0E68,
+            'new_description': bytes([
+                # "Chestnut Canyon" + 0x00
+                0x43, 0x68, 0x65, 0x73, 0x74, 0x6E, 0x75, 0x74, 0x20, 0x43, 0x61, 0x6E, 0x79, 0x6F, 0x6E, 0x00
+            ])
+        },
+        'mushroom_road': {
+            'pointer_addresses': [0x2F081C, 0x2F0824],
+            #'addresses': [0x2F11D0, 0x2F11A0], # Flower Pattern, Sky Pattern
+            'new_address': 0x2F11D0,
+            'new_description': bytes([
+                # "Mushroom Road" + 0x00
+                0x4D, 0x75, 0x73, 0x68, 0x72, 0x6F, 0x6F, 0x6D, 0x20, 0x52, 0x6F, 0x61, 0x64, 0x00
+            ])
+        },
+        'white_mountain': {
+            'pointer_addresses': [0x2F08A4, 0x2F085C],
+            #'addresses': [0x2F0E08, 0x2F0FE0], # Christmas Tree, Arctic Pattern
+            'new_address': 0x2F0FE0, # (not enough room at 0x2F0E08)
+            'new_description': bytes([
+                # "White Mountain" + 0x00
+                0x57, 0x68, 0x69, 0x74, 0x65, 0x20, 0x4D, 0x6F, 0x75, 0x6E, 0x74, 0x61, 0x69, 0x6E, 0x00
+            ])
+        },
+        'papaya_island': {
+            'pointer_addresses': [0x2F08AC, 0x2F08B4],
+            #'addresses': [0x2F0DB8, 0x2F0D88], # UnbaboDoll, Papaya Ukulele
+            'new_address': 0x2F0DB8,
+            'new_description': bytes([
+                # "Papaya Island" + 0x00
+                0x50, 0x61, 0x70, 0x61, 0x79, 0x61, 0x20, 0x49, 0x73, 0x6C, 0x61, 0x6E, 0x64, 0x00
+            ])
+        },
+        'cloud_hill': {
+            'pointer_addresses': [0x2F08BC, 0x2F08C4],
+            #'addresses': [0x2F0D50, 0x2F0D10], # Angel's Wings, God's Rod
+            'new_address': 0x2F0D50,
+            'new_description': bytes([
+                # "Cloud Hill" + 0x00
+                0x43, 0x6C, 0x6F, 0x75, 0x64, 0x20, 0x48, 0x69, 0x6C, 0x6C, 0x00
+            ])
+        }
+    }
+
+    for town in key_descriptions.keys():
+        for ptr_addr in key_descriptions[town]['pointer_addresses']:
+            pine.write_bytes(ptr_addr, int_to_bytes(key_descriptions[town]['new_address'], 4))
+        pine.write_bytes(key_descriptions[town]['new_address'], new_description_part_1 + key_descriptions[town]["new_description"])
+
 
 def fix_vanilla_bugs(pine : Pine):
     """Patch various bugs present in the vanilla game"""

@@ -108,7 +108,13 @@ class PartsCostMaximum(Range):
     display_name = "Parts Cost Maximum"
     default = -1
     range_start = -1
-    range_end = 100000 # Most expensive part in vanilla (Devil Engine)
+    range_end = 200000 # Most expensive part in vanilla (Devil Engine)
+
+class AutoUnlockWarps(Toggle):
+    """Automatically unlock the ability to warp to a town's Q's Factory when you gain access to it.
+    """
+    display_name = "Auto Unlock Warps"
+    default: 0
 
 @dataclass
 class RoadTripOptions(PerGameCommonOptions):
@@ -120,6 +126,7 @@ class RoadTripOptions(PerGameCommonOptions):
     license_handling:                         LicenseHandling
     parts_cost_modifier:                      PartsCostModifier
     parts_cost_maximum:                       PartsCostMaximum
+    auto_unlock_warps:                        AutoUnlockWarps
 
 def get_RTA_options(multiworld: MultiWorld, player : int) -> RoadTripOptions:
     options = multiworld.worlds[player].options

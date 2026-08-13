@@ -146,6 +146,13 @@ def and_(dest, src1, src2):
     opcode = '100100'
     return mips_instruction_register_encoding(opcode, src1, src2, dest, 0)
 
+def andi(dest, src, immediate):
+    """
+    Bitwise logical and, using provided immediate
+    """
+    opcode = '001100'
+    return mips_instruction_immediate_encoding(opcode, src, dest, immediate)
+
 def beq(src_1, src_2, offset):
     """
     Branch if src_1 and src_2 are equal

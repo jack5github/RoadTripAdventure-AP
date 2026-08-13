@@ -73,9 +73,6 @@ def closure__patch_rta_no_slot_data():
             #   something of this size to store all of the shop strings.
             disable_email_system,
 
-            # AP save setup
-            hook_currency_input_to_init_ap_item_index,
-
             # Handling AP location checks
             write_ap_location_func,
             hook_shop_purchases,
@@ -118,7 +115,10 @@ def closure__patch_rta_no_slot_data():
 
 patch_rta_no_slot_data = closure__patch_rta_no_slot_data()
 
-def patch_rta_post_connect(pine : Pine, shop_strings : list, area_unlock_mode : int, parts_cost_modifier : int, parts_cost_maximum : int):
+def patch_rta_post_connect(pine : Pine, shop_strings : list, area_unlock_mode : int, parts_cost_modifier : int, parts_cost_maximum : int, auto_unlock_warps : bool):
+    # AP save setup
+    hook_currency_input_to_init_ap(pine, auto_unlock_warps)
+
     # Handle shop strings
     hook_shops_to_display_ap_item_strings(pine, shop_strings)
 
@@ -164,9 +164,10 @@ def disable_email_system(pine : Pine):
     ]))
 
 
-def hook_currency_input_to_init_ap_item_index(pine : Pine):
+def hook_currency_input_to_init_ap(pine : Pine, auto_unlock_warps : bool):
     """ 
-    Hook RTA to initialize the AP index variable and get the AP save ID on new game. 
+    Hook RTA to, on New Game, initialize the AP index variable, get the AP save ID, and
+    (if Auto Unlock Warps is on) unlock the ability to warp to the Garage.
     This hook runs after currency input is complete, but before the President Forest cutscene begins.
     """
     # Overwrite jal to president Forest cutscene so we can add a hook that runs first
@@ -175,7 +176,25 @@ def hook_currency_input_to_init_ap_item_index(pine : Pine):
     ]))
     
     # Hook
-    pine.write_bytes(HOOK_ADDR_INIT_AP_ITEM_INDEX, mips([
+    # ---------------------
+    # Used only if Auto Unlock Warps is enabled
+    additional_garage_asm = [
+        # Set garage warp unlock bit
+        lui(t1, get_upper_nibble(Addresses.unlocked_warps.address)),
+        ori(t1, t1, get_lower_nibble(Addresses.unlocked_warps.address)),
+        lbu(t0, 0, t1),
+        andi(t0, t0, 0xfe), # Garage warp is the first bit in the bitfield. Unlocked warps bitfield uses 1 to indicate 'not unlocked', so we need to set this bit to 0.
+        sb(t0, 0, t1),
+
+        # Set garage visibility bit
+        lui(t1, get_upper_nibble(Addresses.my_city_buildings.address)),
+        ori(t1, t1, get_lower_nibble(Addresses.my_city_buildings.address)),
+        lbu(t0, 0, t1),
+        ori(t0, t0, 0x80), # 0x80 is 8th bit set
+        sb(t0, 0, t1),
+    ]
+    # Always used
+    asm = [
         # Set AP index to 0x1
         addiu(t0, zero, 0x1),
         lui(t1, get_upper_nibble(Addresses.ap_item_index.address)),
@@ -193,7 +212,12 @@ def hook_currency_input_to_init_ap_item_index(pine : Pine):
         # Now jump to the president Forest cutscene function (don't jal, our jal into this hook already set the ra register)
         j(0x211708),
         nop()
-    ]))
+    ]
+
+    if auto_unlock_warps == True:
+        asm = additional_garage_asm + asm
+
+    pine.write_bytes(HOOK_ADDR_INIT_AP_ITEM_INDEX, mips(asm))
 
 
 def hook_game_continue_to_reset_my_city_part_shop(pine : Pine):

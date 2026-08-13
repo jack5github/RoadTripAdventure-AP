@@ -37,6 +37,7 @@ from Utils import async_start
 from .Patches import patch_rta_no_slot_data, patch_rta_post_connect
 from .pine import Pine
 from .Helpers import *
+from ..categories import decoration_progression_only
 from ..names import ItemName
 from ..ram_data import Addresses
 
@@ -115,6 +116,7 @@ class RTAContext(CommonContext):
     remove_double_up_stamps = None
     parts_cost_modifier = 100
     parts_cost_maximum = -1
+    auto_unlock_warps = None
     reset_post_connect_patches = False
     quick_patch_check_failed = False
 
@@ -160,6 +162,7 @@ class RTAContext(CommonContext):
             self.remove_double_up_stamps = args['slot_data']['remove_double_up_stamps']
             self.parts_cost_modifier = args['slot_data']['parts_cost_modifier']
             self.parts_cost_maximum = args['slot_data']['parts_cost_maximum']
+            self.auto_unlock_warps = args['slot_data']['auto_unlock_warps']
 
             self.reset_post_connect_patches = True
 
@@ -498,6 +501,9 @@ def handle_received_items(self : RTAContext):
                 else:
                     update_inventory(self, item_name)
 
+                if (item_name in decoration_progression_only or item_name == ItemName.Stamp) and self.auto_unlock_warps == True:
+                    unlock_warp(self, item_name)
+
             self.pine.write_int16(Addresses.ap_item_index.address, len(self.items_received) + 1)
         
         elif local_index > len(self.items_received):
@@ -580,6 +586,63 @@ def update_my_city_part_shop(self : RTAContext, item_name : str):
                 bytes = set_bit(bytes, bit)
                 write_bytes_and_verify(pine, address, bytes)
 
+def unlock_warp(self : RTAContext, item_name : str | None):
+    def update_warp_bits_for_decorations_key(current_bytes : bytes, item_name : str):
+        base_region_to_warp_bit = {
+            # Garage: 0,
+            RegionName.Base.Peach_Town: 1,
+            RegionName.Base.Fuji_City: 2,
+            RegionName.Base.Sandpolis: 3,
+            RegionName.Base.Chestnut_Canyon: 4,
+            RegionName.Base.Mushroom_Road: 5,
+            RegionName.Base.White_Mountain: 6,
+            RegionName.Base.Papaya_Island: 7,
+            RegionName.Base.Cloud_Hill: 8,
+            # RegionName.Base.My_City: 9,
+        }
+
+        # For some reason, Road Trip's bitfield for unlocked warps uses 1 to indicate 'not unlocked',
+        #   and 0 to indicate 'unlocked'. We'll need to use clear_bit instead of set_bit to accommodate this.
+
+        # Clear the bit for the warp corresponding to the new key item
+        bit_to_set = base_region_to_warp_bit[key_item_to_unlocked_region[item_name]]
+        current_bytes = clear_bit(current_bytes, bit_to_set)
+
+        return current_bytes
+
+    def update_warp_bits_for_stamp_count(current_bytes : bytes, stamp_count : int):
+        # For some reason, Road Trip's bitfield for unlocked warps uses 1 to indicate 'not unlocked',
+        #   and 0 to indicate 'unlocked'. We'll need to use clear_bit instead of set_bit to accommodate this.
+        for bit, required_count in enumerate(stamp_mode_unlock_thresholds):
+            if stamp_count >= required_count:
+                current_bytes = clear_bit(current_bytes, bit+1) # +1 because bit 0 is the garage
+
+        return current_bytes
+
+    # Read current warp unlock data
+    table = Addresses.unlocked_warps
+    address = table.address
+    num_bytes = table.length // BITS_IN_BYTE
+    current_bytes = self.pine.read_bytes(address, num_bytes)
+
+    if self.area_unlock_mode == 0: # Decorations
+        new_bytes = update_warp_bits_for_decorations_key(current_bytes, item_name)
+    elif self.area_unlock_mode == 1: # Stamps
+        # Read current AP stamp count
+        table = Addresses.ap_stamps_received
+        address = table.address
+        num_bytes = table.length
+        stamp_count = self.pine.read_int8(address)
+
+        new_bytes = update_warp_bits_for_stamp_count(current_bytes, stamp_count)
+    else:
+        pass # Should be impossible, unless another area unlock mode is added
+
+    # Set warps bitfield to the updated bytes
+    table = Addresses.unlocked_warps
+    address = table.address
+    num_bytes = table.length // BITS_IN_BYTE
+    self.pine.write_bytes(address, new_bytes)
 
 def increment_stamp_count(self : RTAContext):
     pine = self.pine
@@ -739,7 +802,7 @@ async def handle_rta(ctx: RTAContext):
             patch_rta_no_slot_data(ctx.pine)
             logger.info("Road Trip AP memory patch successful! Load an AP save or start a new game to continue.")
         if ctx.reset_post_connect_patches:
-            patch_rta_post_connect(ctx.pine, ctx.shop_strings, ctx.area_unlock_mode, ctx.parts_cost_modifier, ctx.parts_cost_maximum)
+            patch_rta_post_connect(ctx.pine, ctx.shop_strings, ctx.area_unlock_mode, ctx.parts_cost_modifier, ctx.parts_cost_maximum, ctx.auto_unlock_warps)
             logger.info("Patches requiring slot data successful!")
             ctx.reset_post_connect_patches = False
 

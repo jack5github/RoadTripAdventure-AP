@@ -2,6 +2,7 @@ import time
 
 from .pine import Pine
 from ..names import ItemName
+from ..regions import RegionName
 
 BITS_IN_BYTE = 8
 
@@ -114,6 +115,36 @@ progressive_part_order = {
         ItemName.Hard_Pad,
         ItemName.Metal_Pad,
     ],
+}
+
+# TODO: Should this be in Helpers, or elsewhere?
+stamp_mode_unlock_thresholds = [0, 5, 10, 15, 20, 25, 30, 35]
+
+# TODO: Should this be in Helpers, or elsewhere?
+key_item_to_unlocked_region = {
+    ItemName.Local_Peach_Wine_Key: RegionName.Base.Peach_Town,
+    ItemName.Peach_Doll_Key: RegionName.Base.Peach_Town,
+
+    ItemName.Gold_Ornament_Key: RegionName.Base.Fuji_City,
+    ItemName.Policemans_Club_Key: RegionName.Base.Fuji_City,
+
+    ItemName.Mini_Tower_Key: RegionName.Base.Sandpolis,
+    ItemName.Toy_Gun_Key: RegionName.Base.Sandpolis,
+
+    ItemName.M_Cartons_Painting_Key: RegionName.Base.Chestnut_Canyon,
+    ItemName.Model_Train_Key: RegionName.Base.Chestnut_Canyon,
+
+    ItemName.Flower_Pattern_Key: RegionName.Base.Mushroom_Road,
+    ItemName.Sky_Pattern_Key: RegionName.Base.Mushroom_Road,
+
+    ItemName.Christmas_Tree_Key: RegionName.Base.White_Mountain,
+    ItemName.Arctic_Pattern_Key: RegionName.Base.White_Mountain,
+
+    ItemName.UnbaboDoll_Key: RegionName.Base.Papaya_Island,
+    ItemName.Papaya_Ukulele_Key: RegionName.Base.Papaya_Island,
+
+    ItemName.Angels_Wings_Key: RegionName.Base.Cloud_Hill,
+    ItemName.Gods_Rod_Key: RegionName.Base.Cloud_Hill,
 }
 
 class PineMock():

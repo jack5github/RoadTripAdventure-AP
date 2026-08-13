@@ -397,3 +397,17 @@ ready_for_my_city_part_shop_inventory = TableData(
     storage_type = StorageType.Bytes,
     base_ID = None
 )
+
+unlocked_warps = TableData(
+    address = 0x1780A3A,
+    length = 16, # Only 10 bits used, one by each warp location. Each bit is 1 if *not* unlocked, and 0 if unlocked.
+    storage_type = StorageType.Bits,
+    base_ID = None
+)
+
+my_city_buildings = TableData(
+    address = 0x177FDD0,
+    length = BITS_IN_BYTE * 4, # Doesn't appear to use last 4 bits (i.e. set first 28 bits to 1 to unlock all buildings), although not thoroughly tested
+    storage_type = StorageType.Bits,
+    base_ID = None
+)

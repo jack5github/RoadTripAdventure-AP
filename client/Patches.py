@@ -101,7 +101,7 @@ def closure__patch_rta_no_slot_data():
                 patches[patch_index](pine)
                 cached_patches[patch_index] = pine
             else:
-                pine.__dict__.update(cached_patches[patch_index].__dict__)
+                vars(pine).update(vars(cached_patches[patch_index])) # Replace passed pine object's data with cached data (instead of running the patch function again)
             
             patch_index += 1
             if patch_index >= len(patches):

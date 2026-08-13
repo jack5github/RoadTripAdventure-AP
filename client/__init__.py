@@ -116,7 +116,7 @@ class RTAContext(CommonContext):
     remove_double_up_stamps = None
     parts_cost_modifier = 100
     parts_cost_maximum = -1
-    auto_unlock_warps = None
+    auto_unlock_warps = False
     reset_post_connect_patches = False
     quick_patch_check_failed = False
 
@@ -154,15 +154,15 @@ class RTAContext(CommonContext):
         if cmd == "Connected":
             print("Connected")
 
-            self.gen_world_version = args['slot_data']['gen_world_version']
-            self.filler_amount = args['slot_data']['filler_amount']
-            self.save_id = args['slot_data']['save_id']
-            self.shop_strings = args['slot_data']['shop_strings']
-            self.area_unlock_mode = args['slot_data']['area_unlock_mode']
-            self.remove_double_up_stamps = args['slot_data']['remove_double_up_stamps']
-            self.parts_cost_modifier = args['slot_data']['parts_cost_modifier']
-            self.parts_cost_maximum = args['slot_data']['parts_cost_maximum']
-            self.auto_unlock_warps = args['slot_data']['auto_unlock_warps']
+            self.gen_world_version = args['slot_data'].get('gen_world_version', self.gen_world_version)
+            self.filler_amount = args['slot_data'].get('filler_amount', self.filler_amount)
+            self.save_id = args['slot_data'].get('save_id', self.save_id)
+            self.shop_strings = args['slot_data'].get('shop_strings', self.shop_strings)
+            self.area_unlock_mode = args['slot_data'].get('area_unlock_mode', self.area_unlock_mode)
+            self.remove_double_up_stamps = args['slot_data'].get('remove_double_up_stamps', self.remove_double_up_stamps)
+            self.parts_cost_modifier = args['slot_data'].get('parts_cost_modifier', self.parts_cost_modifier)
+            self.parts_cost_maximum = args['slot_data'].get('parts_cost_maximum', self.parts_cost_maximum)
+            self.auto_unlock_warps = args['slot_data'].get('auto_unlock_warps', self.auto_unlock_warps)
 
             self.reset_post_connect_patches = True
 

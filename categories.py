@@ -160,6 +160,78 @@ my_city_invites_list = [
 
 
 # -------- Locations --------
+def generate_location_name_groups() -> dict[str, set[str]]:
+    from . import locations
+    all_double_up_stamp_names = {get_combined_double_up_stamp_name(key) for key in double_up_stamps}
+    
+    return {
+        "Races": set().union(
+            locations.races_c_rank.keys(),
+            locations.races_b_rank.keys(),
+            locations.races_a_rank.keys(),
+            locations.races_other.keys()
+        ),
+        "Races - Rank C": set(locations.races_c_rank.keys()),
+        "Races - Rank B": set(locations.races_b_rank.keys()),
+        "Races - Rank A": set(locations.races_a_rank.keys()),
+        "Races - Other": set(locations.races_other.keys()),
+        "Stamps": set().union(
+            locations.stamps.keys(),
+            all_double_up_stamp_names
+        ),
+        "Items Received": set().union(
+            locations.items_received.keys(),
+            all_double_up_stamp_names # Double-up stamps should always be a key-value pair of item received to stamp
+        ),
+        "Billboards": {
+            LocationName.Billboard_Coffee_Shop,
+            LocationName.Billboard_Noodle_Shop,
+            LocationName.Billboard_Cake_Shop,
+            LocationName.Billboard_Wool_Shop,
+            LocationName.Billboard_Coconut_Shop,
+        },
+        "Coine Rewards": {
+            LocationName.Coine_Reward_1,
+            LocationName.Coine_Reward_2,
+            LocationName.Coine_Reward_3,
+            LocationName.Coine_Reward_4,
+            LocationName.Coine_Reward_5,
+            LocationName.Coine_Reward_6,
+            LocationName.Coine_Reward_7,
+            LocationName.Coine_Reward_8,
+            LocationName.Coine_Reward_9,
+            LocationName.Coine_Reward_10,
+            get_combined_double_up_stamp_name(LocationName.Coine_Reward_10),
+        },
+        "Trade Quest": {
+            LocationName.Trade_Quest_1,
+            LocationName.Trade_Quest_2,
+            LocationName.Trade_Quest_3,
+            LocationName.Trade_Quest_4,
+            LocationName.Trade_Quest_5,
+            LocationName.Trade_Quest_6,
+            LocationName.Trade_Quest_7,
+        },
+        "Duck Quiz": {
+            LocationName.Duck_Quiz_1,
+            LocationName.Duck_Quiz_2,
+            LocationName.Duck_Quiz_3,
+            get_combined_double_up_stamp_name(LocationName.Duck_Quiz_3),
+        },
+        "Overworld Items": set(locations.overworld_items),
+        "Gemstones": {
+            LocationName.Blue_Sapphire,
+            LocationName.Emerald,
+            LocationName.Ruby,
+            LocationName.Topaz,
+            LocationName.Black_Opal,
+            LocationName.Moonstone,
+            LocationName.Amethyst,
+        },
+        "Shop Purchases": set(locations.shop_purchases),
+        "Licenses": set(locations.licenses),
+    }
+
 challenge_minigames : dict[str] = {
     LocationName.Stamp_6,   # Barrel Dodging
     LocationName.Stamp_15,  # Treasure Hunting Maze in 3 min
@@ -248,6 +320,58 @@ def get_combined_double_up_stamp_name(location_name : str) -> str:
 
 
 # -------- Items --------
+def generate_item_name_groups() -> dict[str, set[str]]:
+    from . import items
+
+    return {
+        "Bodies": set(items.bodies.keys()),
+        "Parts": set().union(
+            items.tires.keys(),
+            items.engines.keys(),
+            items.chassis.keys(),
+            items.transmission.keys(),
+            items.steering.keys(),
+            items.brakes.keys(),
+            items.wheels.keys(),
+            items.lights.keys(),
+            items.wing_set.keys(),
+            items.special_parts.keys(),
+            items.options.keys(),
+            items.sticker.keys(),
+            items.horns.keys(),
+            items.meters.keys()
+        ),
+        "Tires": set(items.tires.keys()),
+        "Engines": set(items.engines.keys()),
+        "Chassis": set(items.chassis.keys()),
+        "Transmissions": set(items.transmission.keys()),
+        "Steering": set(items.steering.keys()),
+        "Brakes": set(items.brakes.keys()),
+        "Wheels": set(items.wheels.keys()),
+        "Lights": set(items.lights.keys()),
+        "Wing Sets": set(items.wing_set.keys()),
+        "Special Parts": set(items.special_parts.keys()),
+        "Options": set(items.options.keys()),
+        "Horns": set(items.horns.keys()),
+        "Meters": set(items.meters.keys()),
+        "Garage Items": set().union(
+            items.garage_wallpapers.keys(),
+            items.garage_decorations.keys()
+        ),
+        "Garage Wallpapers": set(items.garage_wallpapers.keys()),
+        "Garage Decorations": set(items.garage_decorations.keys()),
+        "Area Unlocks": set(items.area_unlocks.keys()),
+        "Collectibles": set(items.collectibles.keys()),
+        "Progressive Parts": set().union(
+            items.progressive_parts.keys(),
+            items.progressive_parts_set_2.keys(),
+            items.progressive_parts_set_3.keys(),
+        ),
+        "Progressive Parts - Set 1": set(items.progressive_parts.keys()),
+        "Progressive Parts - Set 2": set(items.progressive_parts_set_2.keys()),
+        "Progressive Parts - Set 3": set(items.progressive_parts_set_3.keys()),
+    }
+
 decoration_progression_only : dict[str] = {
     # Peach Town unlocks (given at the start)
     ItemName.Local_Peach_Wine_Key,

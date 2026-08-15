@@ -37,8 +37,6 @@ Archipelago is a multi-game randomizer that can shuffle items from one game into
 
 ### Locations
 - Purchasing an item from the parts shop for the first time
-    - NOTE: **Only the first purchase of an AP item will send a check. However, the game is not currently patched to prevent you from repurchasing AP items.**
-    - To make sure you don't accidentally repurchase a part, check to see whether "You have it" is displaying for that part above its description.
 - Receiving an item via dialogue
 - Collecting an item via the overworld (except Q Coins)
 - Finishing a race in 6th place or higher
@@ -56,6 +54,3 @@ Set the [setup guide](./docs/setup_en.md) for instructions.
     - Uncertain on NTSC-J support in particular, as it likely differs more from NTSC-U internally than PAL.
 - Are there plans to add Q coins and Quick-Pic shops as items/locations?
     - Yes! It's one of the higher-priority things on my list.
-
-## Known Issues
-- The game is not yet patched to prevent repurchases of AP items from part shops, even though repurchases will not send another check.

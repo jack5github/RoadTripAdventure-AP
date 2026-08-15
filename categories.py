@@ -325,7 +325,7 @@ def generate_item_name_groups() -> dict[str, set[str]]:
 
     return {
         "Bodies": set(items.bodies.keys()),
-        # Currently, parts are only added to the item pool as 'Progressive [Part Type]'.
+        # Currently, these parts are only added to the item pool as 'Progressive [Part Type]'.
         #   Leaving the below commented out for future reference in case this changes.
         # "Parts": set().union(
         #     items.tires.keys(),

@@ -325,13 +325,34 @@ def generate_item_name_groups() -> dict[str, set[str]]:
 
     return {
         "Bodies": set(items.bodies.keys()),
+        # Currently, parts are only added to the item pool as 'Progressive [Part Type]'.
+        #   Leaving the below commented out for future reference in case this changes.
+        # "Parts": set().union(
+        #     items.tires.keys(),
+        #     items.engines.keys(),
+        #     items.chassis.keys(),
+        #     items.transmission.keys(),
+        #     items.steering.keys(),
+        #     items.brakes.keys(),
+        #     items.wheels.keys(),
+        #     items.lights.keys(),
+        #     items.wing_set.keys(),
+        #     items.special_parts.keys(),
+        #     items.options.keys(),
+        #     items.sticker.keys(),
+        #     items.horns.keys(),
+        #     items.meters.keys()
+        # ),
+        # "Tires": set(items.tires.keys()),
+        # "Engines": set(items.engines.keys()),
+        # "Chassis": set(items.chassis.keys()),
+        # "Transmissions": set(items.transmission.keys()),
+        # "Steering": set(items.steering.keys()),
+        # "Brakes": set(items.brakes.keys()),
         "Parts": set().union(
-            items.tires.keys(),
-            items.engines.keys(),
-            items.chassis.keys(),
-            items.transmission.keys(),
-            items.steering.keys(),
-            items.brakes.keys(),
+            items.progressive_parts.keys(),
+            items.progressive_parts_set_2.keys(),
+            items.progressive_parts_set_3.keys(),
             items.wheels.keys(),
             items.lights.keys(),
             items.wing_set.keys(),
@@ -341,12 +362,36 @@ def generate_item_name_groups() -> dict[str, set[str]]:
             items.horns.keys(),
             items.meters.keys()
         ),
-        "Tires": set(items.tires.keys()),
-        "Engines": set(items.engines.keys()),
-        "Chassis": set(items.chassis.keys()),
-        "Transmissions": set(items.transmission.keys()),
-        "Steering": set(items.steering.keys()),
-        "Brakes": set(items.brakes.keys()),
+        "Tires": {
+            ItemName.Progressive_Tires,
+            ItemName.Progressive_Tires_Set_2,
+            ItemName.Progressive_Tires_Set_3,
+        },
+        "Engines": {
+            ItemName.Progressive_Engine,
+            ItemName.Progressive_Engine_Set_2,
+            ItemName.Progressive_Engine_Set_3,
+        },
+        "Chassis": {
+            ItemName.Progressive_Chassis,
+            ItemName.Progressive_Chassis_Set_2,
+            ItemName.Progressive_Chassis_Set_3,
+        },
+        "Transmissions": {
+            ItemName.Progressive_Transmission,
+            ItemName.Progressive_Transmission_Set_2,
+            ItemName.Progressive_Transmission_Set_3,
+        },
+        "Steering": {
+            ItemName.Progressive_Steering,
+            ItemName.Progressive_Steering_Set_2,
+            ItemName.Progressive_Steering_Set_3,
+        },
+        "Brakes": {
+            ItemName.Progressive_Brakes,
+            ItemName.Progressive_Brakes_Set_2,
+            ItemName.Progressive_Brakes_Set_3,
+        },
         "Wheels": set(items.wheels.keys()),
         "Lights": set(items.lights.keys()),
         "Wing Sets": set(items.wing_set.keys()),

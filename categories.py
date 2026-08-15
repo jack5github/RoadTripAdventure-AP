@@ -29,7 +29,7 @@ do_not_room_rando_list : list[str] = [
     RegionName.Cloud_Hill_President_Room,
 ]
 
-quick_pic_shops_list : list[str] = {
+quick_pic_shops_list : list[str] = [
     # Placing 28 and 29 first in the list so that in playthroughs where rooms are not randomized,
     #  canAccessAllQuickPicShops will fail quickly when False, as these are the hardest two to access.  
     RegionName.Quick_Pic_28, 
@@ -132,9 +132,9 @@ quick_pic_shops_list : list[str] = {
     RegionName.Quick_Pic_98,
     RegionName.Quick_Pic_99,
     RegionName.Quick_Pic_100,
-}
+]
 
-my_city_invites_list = [
+my_city_invites_list : list[str] = [
     RegionName.Peach_Town_NPC_Accel, # Police Station
     RegionName.Sandpolis_NPC_Akiban, # Tunnel Race
     RegionName.Fuji_City_NPC_Brian, # Fire Station
@@ -232,7 +232,7 @@ def generate_location_name_groups() -> dict[str, set[str]]:
         "Licenses": set(locations.licenses),
     }
 
-challenge_minigames : dict[str] = {
+challenge_minigames : set[str] = {
     LocationName.Stamp_6,   # Barrel Dodging
     LocationName.Stamp_15,  # Treasure Hunting Maze in 3 min
     LocationName.Stamp_16,  # Sliding Door Race
@@ -417,7 +417,7 @@ def generate_item_name_groups() -> dict[str, set[str]]:
         "Progressive Parts - Set 3": set(items.progressive_parts_set_3.keys()),
     }
 
-decoration_progression_only : dict[str] = {
+decoration_progression_only : set[str] = {
     # Peach Town unlocks (given at the start)
     ItemName.Local_Peach_Wine_Key,
     ItemName.Peach_Doll_Key,
@@ -451,7 +451,7 @@ decoration_progression_only : dict[str] = {
     ItemName.Gods_Rod_Key,
 }
 
-stamp_progression_only : dict[str] = {
+stamp_progression_only : set[str] = {
     ItemName.Stamp,
 
     # Normal filler versions of the area unlock items

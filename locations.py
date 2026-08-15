@@ -965,7 +965,10 @@ overworld_items : dict[str, LocationData] = {
     #    will need to be updated.
     LocationName.Wallet: LocationData(BASE_IDS.ITEMS + 278, RegionName.Base.Peach_Town),
     
-    LocationName.Blue_Sapphire: LocationData(BASE_IDS.ITEMS + 287, RegionName.Base.Sandpolis),
+    LocationName.Blue_Sapphire: LocationData(BASE_IDS.ITEMS + 287, RegionName.Base.Sandpolis,
+        access_rule = lambda state, player:
+            has_tires_of_level(10, state, player) # Big Tires, to drive up the pyramid
+    ),
     LocationName.Emerald: LocationData(BASE_IDS.ITEMS + 288, RegionName.Base.White_Mountain),
     LocationName.Ruby: LocationData(BASE_IDS.ITEMS + 289, RegionName.Base.Sandpolis),
     LocationName.Topaz: LocationData(BASE_IDS.ITEMS + 290, RegionName.Base.Fuji_City),
@@ -983,7 +986,10 @@ overworld_items : dict[str, LocationData] = {
     ),
     LocationName.Amethyst: LocationData(BASE_IDS.ITEMS + 293, RegionName.Base.White_Mountain),
     
-    LocationName.Fountain_Pen: LocationData(BASE_IDS.ITEMS + 295, RegionName.Base.Sandpolis),
+    LocationName.Fountain_Pen: LocationData(BASE_IDS.ITEMS + 295, RegionName.Base.Sandpolis,
+        access_rule = lambda state, player:
+            has_tires_of_level(10, state, player) # Big Tires, to drive up the pyramid
+    ),
 
     LocationName.Papu_Flower: LocationData(BASE_IDS.ITEMS + 297, RegionName.Base.Papaya_Island_Upper),
     LocationName.Fluffy_Mushroom: LocationData(BASE_IDS.ITEMS + 298, RegionName.Base.Mushroom_Road),
